@@ -65,8 +65,9 @@ not a system path.
 ## Step 2: Put the skill folder into the skill directory
 
 The skill is the `Zotero pdf note to Obsidian` folder in this repository: a
-`skill.md`, a `resources/` directory (templates), and a `scripts/` directory
-(the pipeline + export scripts). Copy the whole folder into `TARGET`.
+`skill.md`, a `resources/` directory (`resources/template/` holds the note
+templates, `resources/config/` holds the JSON config), and a `scripts/`
+directory (the pipeline + export scripts). Copy the whole folder into `TARGET`.
 
 ### Path A: clone and copy (no extra tooling)
 
@@ -207,8 +208,35 @@ them permanent:
 ## Step 5: Configure the three filesystem paths
 
 The skill defaults to the author's local paths (`G:\硕士\...`). Every user must
-point these at their own machine. Three environment variables override the
-defaults; the scripts also accept equivalent CLI flags.
+point these at their own machine. Two ways to do it — **recommended: edit the
+JSON config**, or **alternative: set environment variables** (which take
+priority over the config file).
+
+### 5a. Recommended: copy and edit the JSON config
+
+Copy the shipped example into your local override (the local `config.json` is
+git-ignored, so it will never be overwritten by an update):
+
+```bash
+cd "<TARGET>/Zotero pdf note to Obsidian"
+cp resources/config/config.example.json resources/config/config.json
+```
+
+**Windows (PowerShell):**
+
+```powershell
+cd "$env:USERPROFILE\.claude\skills\Zotero pdf note to Obsidian"
+Copy-Item resources\config\config.example.json resources\config\config.json
+```
+
+Then open `resources/config/config.json` and set the three paths (and optionally
+`behavior`: `subdir`, `compress`, `model`, `timeout`). The scripts read it at
+startup — no restart needed.
+
+### 5b. Alternative: environment variables
+
+Three environment variables override the config file (env > config.json >
+built-in default). The scripts also accept equivalent CLI flags.
 
 | Env var | What it is | CLI flag | Author default |
 | :-- | :-- | :-- | :-- |
@@ -265,11 +293,18 @@ python3 "<TARGET>/Zotero pdf note to Obsidian/scripts/pipeline_prep.py" --help
 python3 "<TARGET>/Zotero pdf note to Obsidian/scripts/export_to_obsidian.py" --help
 ```
 
-Both should print usage text, and each option that has a default shows it as
-`(default: <value>)`. Set one of the env vars (Step 5) and re-run the same
-`--help` — the default shown for that path should change to your value. If you
-set the env var and the help still shows the author's fallback path, the variable
-was not set for this shell (Step 5's persistence step).
+Both should print usage text. (Note: Python 3.8's argparse does **not** show
+`(default: ...)` in `--help`, so confirm the config is wired by printing what
+`load_config()` actually reads):
+
+```bash
+python3 -c "import sys; sys.path.insert(0, '<TARGET>/Zotero pdf note to Obsidian/scripts'); from load_creds import load_config; print(load_config())"
+```
+
+It should print a dict from `resources/config/`. To verify your override works,
+edit `paths.base_dir` in your local `resources/config/config.json` (Step 5a)
+and re-run the command — the printed `base_dir` should change to your value.
+(Environment variables take priority at runtime, as documented in Step 5b.)
 
 **If it fails:**
 - `ModuleNotFoundError` -> the Python packages from Step 3 are missing.

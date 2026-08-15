@@ -6,6 +6,9 @@ __pycache__/
 # Credentials — never commit secrets
 .zotero_credentials
 
+# Local user config (copy config.example.json -> config.json to customize)
+resources/config/config.json
+
 # OS
 Thumbs.db
 .DS_Store

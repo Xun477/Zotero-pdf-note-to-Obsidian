@@ -29,7 +29,23 @@ if not os.path.exists(_refs_dir):
     sys.path.insert(0, _refs_dir)
 else:
     sys.path.insert(0, _script_dir)
-from load_creds import get_api_key, get_user_id
+from load_creds import get_api_key, get_user_id, load_config
+
+# ============================================================
+# Config: env var > resources/config/*.json > built-in fallback
+# ============================================================
+_cfg = load_config()
+
+def _d(env_name, cfg_path, fallback):
+    v = os.environ.get(env_name) if env_name else None
+    if v:
+        return v
+    cur = _cfg
+    for k in (cfg_path.split('.') if cfg_path else []):
+        if not isinstance(cur, dict):
+            return fallback
+        cur = cur.get(k)
+    return cur if cur is not None else fallback
 
 # ============================================================
 # Parse args
@@ -37,10 +53,11 @@ from load_creds import get_api_key, get_user_id
 parser = argparse.ArgumentParser(description='Zotero search + PDF locate + MinerU extract')
 parser.add_argument('--query', required=True, help='Paper title or keywords')
 parser.add_argument('--item-key', default=None, help='Skip search, use this Zotero item key directly')
-parser.add_argument('--base-dir', default=os.environ.get('ZOTERO_NOTE_BASE_DIR', r'G:\硕士\ai\中转'), help='Base output directory (env: ZOTERO_NOTE_BASE_DIR)')
+parser.add_argument('--base-dir', default=_d('ZOTERO_NOTE_BASE_DIR', 'paths.base_dir', r'G:\硕士\ai\中转'), help='Base output directory (env: ZOTERO_NOTE_BASE_DIR)')
 parser.add_argument('--ocr', action='store_true', default=False, help='Enable OCR mode for MinerU')
 parser.add_argument('--user-id', default=None, help='Zotero user ID')
-parser.add_argument('--storage-dir', default=os.environ.get('ZOTERO_STORAGE_DIR', r'G:\硕士\Zotero\storage'), help='Zotero attachment storage dir (env: ZOTERO_STORAGE_DIR)')
+parser.add_argument('--storage-dir', default=_d('ZOTERO_STORAGE_DIR', 'paths.storage_dir', r'G:\硕士\Zotero\storage'), help='Zotero attachment storage dir (env: ZOTERO_STORAGE_DIR)')
+parser.add_argument('--model', default=_d(None, 'behavior.model', 'auto'), help='MinerU model: auto / vlm / pipeline / html (default: auto)')
 args = parser.parse_args()
 
 API_KEY = get_api_key()
@@ -160,6 +177,8 @@ if mineru_token:
 cmd = ['mineru-open-api', 'extract', pdf_path, '-o', output_dir, '-f', 'md']
 if args.ocr:
     cmd.append('--ocr')
+if args.model and args.model != 'auto':
+    cmd += ['--model', args.model]
 
 # Resolve full path: npm global packages may have .cmd wrappers not on subprocess PATH
 import shutil
@@ -167,8 +186,9 @@ _exe = shutil.which('mineru-open-api') or shutil.which('mineru-open-api.cmd')
 if _exe:
     cmd[0] = _exe
 
-print(f'[pipeline] Running MinerU (ocr={args.ocr})...', file=sys.stderr)
-result = subprocess.run(cmd, env=env, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=120, shell=False)
+print(f'[pipeline] Running MinerU (ocr={args.ocr}, model={args.model})...', file=sys.stderr)
+timeout = _d(None, 'behavior.timeout', 120)
+result = subprocess.run(cmd, env=env, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=timeout, shell=False)
 
 if result.returncode != 0:
     print(f'ERROR: MinerU failed (exit {result.returncode})', file=sys.stderr)

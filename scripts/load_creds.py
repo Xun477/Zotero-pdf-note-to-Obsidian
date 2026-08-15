@@ -4,13 +4,18 @@
   2. Credentials file ~/.zotero_credentials
   3. Windows Registry (HKCU\Environment\ZOTERO_API_KEY)
 
+Also loads the non-secret JSON config (paths + behavior) from:
+  resources/config/config.json   (user override)
+  resources/config/config.example.json  (shipped defaults, fallback)
+
 Usage:
-  from load_creds import get_api_key
+  from load_creds import get_api_key, get_user_id, load_config
   api_key = get_api_key()  # exits with code 1 if not found
 """
 
 import os
 import sys
+import json
 
 
 def get_api_key():
@@ -46,3 +51,25 @@ def get_api_key():
 def get_user_id(default='21068406'):
     """Return ZOTERO_USER_ID from env, or fall back to default."""
     return os.environ.get('ZOTERO_USER_ID', default)
+
+
+def load_config():
+    """Load non-secret JSON config from resources/config.
+
+    Priority: config.json (user override) -> config.example.json (shipped
+    defaults) -> {} (built-in fallback). Returns {} on missing/corrupt file
+    or non-dict root, so callers always get a dict and never crash.
+    """
+    cfg_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                           '..', 'resources', 'config')
+    for name in ('config.json', 'config.example.json'):
+        path = os.path.join(cfg_dir, name)
+        try:
+            # utf-8-sig tolerates a UTF-8 BOM (Windows editors may add one).
+            with open(path, 'r', encoding='utf-8-sig') as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            continue
+    return {}

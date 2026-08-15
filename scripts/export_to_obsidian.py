@@ -35,7 +35,23 @@ if not os.path.exists(_refs_dir):
     sys.path.insert(0, _refs_dir)
 else:
     sys.path.insert(0, _script_dir)
-from load_creds import get_user_id
+from load_creds import get_user_id, load_config
+
+# ============================================================
+# Config: env var > resources/config/*.json > built-in fallback
+# ============================================================
+_cfg = load_config()
+
+def _d(env_name, cfg_path, fallback):
+    v = os.environ.get(env_name) if env_name else None
+    if v:
+        return v
+    cur = _cfg
+    for k in (cfg_path.split('.') if cfg_path else []):
+        if not isinstance(cur, dict):
+            return fallback
+        cur = cur.get(k)
+    return cur if cur is not None else fallback
 
 # ============================================================
 # Parse args
@@ -45,11 +61,15 @@ parser.add_argument('--md-file', required=True, help='Path to the _note.md')
 parser.add_argument('--output-dir', required=True, help='MinerU output dir (contains images/)')
 parser.add_argument('--pdf-name', required=True, help='Paper name for vault folder/note')
 parser.add_argument('--item-key', default=None, help='Zotero parent item key (for zotero link)')
-parser.add_argument('--vault-dir', default=os.environ.get('OBSIDIAN_VAULT_DIR', r'G:\硕士\论文'), help='Obsidian vault root (env: OBSIDIAN_VAULT_DIR)')
-parser.add_argument('--subdir', default='文献', help='Subfolder inside the vault')
-parser.add_argument('--compress', action='store_true', default=False, help='Resize images >800px')
+parser.add_argument('--vault-dir', default=_d('OBSIDIAN_VAULT_DIR', 'paths.vault_dir', r'G:\硕士\论文'), help='Obsidian vault root (env: OBSIDIAN_VAULT_DIR)')
+parser.add_argument('--subdir', default=_d(None, 'behavior.subdir', '文献'), help='Subfolder inside the vault')
+parser.add_argument('--compress', action='store_true', default=None, help='Resize images >800px (default from config behavior.compress)')
 parser.add_argument('--user-id', default=None, help='Zotero user ID')
 args = parser.parse_args()
+
+# --compress is a store_true flag: default=None means "not passed" -> fall back to config.
+if args.compress is None:
+    args.compress = bool(_cfg.get('behavior', {}).get('compress', False))
 
 USER_ID = args.user_id or get_user_id()
 

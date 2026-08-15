@@ -53,8 +53,8 @@ Write-Output "heartbeat"
 | 写入 Obsidian 时是否压缩图片（>800px 压缩）？ | **压缩图片（推荐）** / 不压缩 |
 
 **类型选择影响后续模板：**
-- 论文（非综述）→ 改写时 Read [resources/paper.md](resources/paper.md)，7 板块 IMRaD
-- 其他 → 改写时 Read [resources/general.md](resources/general.md)，自由逐步总结
+- 论文（非综述）→ 改写时 Read [resources/template/paper.md](resources/template/paper.md)，7 板块 IMRaD
+- 其他 → 改写时 Read [resources/template/general.md](resources/template/general.md)，自由逐步总结
 
 **压缩选择**在步骤 4 执行脚本时生效（`--compress` 参数）。
 
@@ -66,7 +66,7 @@ Write-Output "heartbeat"
 python "$env:USERPROFILE\.claude\skills\Zotero pdf note to Obsidian\scripts\pipeline_prep.py" --query "论文标题关键词" --base-dir $env:ZOTERO_NOTE_BASE_DIR
 ```
 
-> 脚本路径随 skill 安装位置而定，此处用 `$env:USERPROFILE\.claude\skills\...` 作通用占位。`--base-dir` 默认取环境变量 `ZOTERO_NOTE_BASE_DIR`（未设置时回退到作者本地路径 `G:\硕士\ai\中转`）；Zotero 附件目录同理可用 `--storage-dir` 或 `ZOTERO_STORAGE_DIR` 覆盖。
+> 脚本路径随 skill 安装位置而定，此处用 `$env:USERPROFILE\.claude\skills\...` 作通用占位。`--base-dir` 默认取环境变量 `ZOTERO_NOTE_BASE_DIR`（未设置时依次回退 `resources/config/config.json` 的 `paths.base_dir` → `G:\硕士\ai\中转`）；Zotero 附件目录同理可用 `--storage-dir`、`ZOTERO_STORAGE_DIR` 或配置文件的 `paths.storage_dir` 覆盖。
 
 输出 JSON（agent 解析后获取后续步骤所需的所有路径和 key）：
 
@@ -77,15 +77,15 @@ python "$env:USERPROFILE\.claude\skills\Zotero pdf note to Obsidian\scripts\pipe
 
 - 如果搜索结果不对，用 `--item-key` 直接指定 Zotero 条目 Key 跳过搜索
 - 扫描版 PDF 加 `--ocr`
-- 图片多或截图不全时，可加 `--model vlm` 提升 MinerU 提取完整度（更慢更贵，默认 `auto`；需要 pipeline_prep.py 支持时先实现该参数）
+- 图片多或截图不全时，可加 `--model vlm` 提升 MinerU 提取完整度（更慢更贵，默认 `auto`）
 
 ### 步骤 3 — 读取 MD 并改写为结构化笔记
 
 1. 读取步骤 2 输出的 `md_file`——**读到 `## References` / `# References` / `参考文献` 标题行立即停止**，后面的引用列表不读。
 2. 在读取过程中，**枚举并记录 MD 中出现的所有 `![](images/xxx.png)` 图片引用**（正文中 References 之前出现的全部图片），形成一张图片清单。
 3. 根据步骤 1 的类型选择，Read 对应模板：
-   - 论文 → [resources/paper.md](resources/paper.md)
-   - 其他 → [resources/general.md](resources/general.md)
+   - 论文 → [resources/template/paper.md](resources/template/paper.md)
+   - 其他 → [resources/template/general.md](resources/template/general.md)
 4. 按模板中的改写规则和格式改写 MD，保存为 `{output_dir}\{pdf名}_note.md`。（规则已定义在模板文件中，无需在此重复。）
 5. **图片完整性核对（必做）：** 改写完成后，对照第 2 步的图片清单逐条确认——原文每一张图片都必须出现在新笔记中（对应板块内，或文末 `## 📷 全部图片 / 图片附录`）。**笔记里的图片数不得少于原文图片数。** 有缺失就补上，不得省略任何一张。
 6. 图片放不下的，在 `## 🏁 Conclusion` 之后、尾部标注之前加 `## 📷 全部图片 / 图片附录` 一节列出剩余图片。
@@ -96,7 +96,7 @@ python "$env:USERPROFILE\.claude\skills\Zotero pdf note to Obsidian\scripts\pipe
 python "$env:USERPROFILE\.claude\skills\Zotero pdf note to Obsidian\scripts\export_to_obsidian.py" --md-file "{output_dir}\{pdf名}_note.md" --output-dir "{output_dir}" --pdf-name "{pdf名}" --item-key "{item_key}" --compress
 ```
 
-步骤 1 选不压缩时去掉 `--compress`。`--pdf-name` 取步骤 2 输出 JSON 里的 `pdf_name`。脚本把笔记（自动加 YAML frontmatter）+ `images/` 写入 Obsidian 仓库 `文献\{pdf名}\`，输出 `Vault Note: <路径>` 和 `Result: OK` 即为成功。图片引用保持 `![](images/xxx.png)` 相对路径，Obsidian 内正常渲染。Obsidian 仓库根目录默认取环境变量 `OBSIDIAN_VAULT_DIR`（未设置时回退到 `G:\硕士\论文`），也可用 `--vault-dir` 覆盖。
+步骤 1 选不压缩时去掉 `--compress`。`--pdf-name` 取步骤 2 输出 JSON 里的 `pdf_name`。脚本把笔记（自动加 YAML frontmatter）+ `images/` 写入 Obsidian 仓库 `文献\{pdf名}\`，输出 `Vault Note: <路径>` 和 `Result: OK` 即为成功。图片引用保持 `![](images/xxx.png)` 相对路径，Obsidian 内正常渲染。Obsidian 仓库根目录默认取环境变量 `OBSIDIAN_VAULT_DIR`（未设置时依次回退 `resources/config/config.json` 的 `paths.vault_dir` → `G:\硕士\论文`），也可用 `--vault-dir` 覆盖。
 
 > 脚本直接从 `scripts/` 运行，`load_creds.py` 在同目录。
 

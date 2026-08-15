@@ -1,0 +1,13 @@
+{
+  "paths": {
+    "base_dir":    "G:\\硕士\\ai\\中转",
+    "storage_dir": "G:\\硕士\\Zotero\\storage",
+    "vault_dir":   "G:\\硕士\\论文"
+  },
+  "behavior": {
+    "subdir":   "文献",
+    "compress": false,
+    "model":    "auto",
+    "timeout":  120
+  }
+}

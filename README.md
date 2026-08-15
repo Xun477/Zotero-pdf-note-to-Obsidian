@@ -9,7 +9,7 @@ Zotero 论文 PDF 一键转结构化阅读笔记——MinerU 高精度提取 →
 1. 把 `Zotero pdf note to Obsidian` 文件夹复制到 skill 目录（Claude Code 为 `~/.claude/skills/`，Windows 为 `%USERPROFILE%\.claude\skills\`）
 2. `pip install httpx Pillow mineru-open-api`
 3. 配置三个凭据：`ZOTERO_API_KEY`、`ZOTERO_USER_ID`（默认值是作者 ID，**必须改自己的**）、`MINERU_TOKEN`
-4. 配置三个路径环境变量：`ZOTERO_STORAGE_DIR`、`ZOTERO_NOTE_BASE_DIR`、`OBSIDIAN_VAULT_DIR`
+4. 配置三个路径：复制 `resources/config/config.example.json` → `resources/config/config.json` 并修改（推荐），或用环境变量 `ZOTERO_STORAGE_DIR`、`ZOTERO_NOTE_BASE_DIR`、`OBSIDIAN_VAULT_DIR` 覆盖
 
 > 🪪 **开源协议：** 本 skill 以 **MIT** 协议发布，见 [LICENSE](LICENSE)。
 
@@ -18,8 +18,8 @@ Zotero 论文 PDF 一键转结构化阅读笔记——MinerU 高精度提取 →
 把"下载论文 → 读论文 → 做笔记"的 1-2 小时手工劳动压缩为 ~3 分钟自动完成。你在 Zotero 里存了 PDF，说一声论文标题，结构化笔记就出现在 Obsidian 论文仓库。
 
 **双模板设计：**
-- 📄 **论文（非综述）** → [7 板块 IMRaD](resources/paper.md)（Author → Keywords → Abstract → Introduction → Experimental → Results → Conclusion）
-- 📋 **其他**（综述/应用笔记/技术报告/专利）→ [自由逐步总结](resources/general.md)（按原文章节归纳，不强制固定板块）
+- 📄 **论文（非综述）** → [7 板块 IMRaD](resources/template/paper.md)（Author → Keywords → Abstract → Introduction → Experimental → Results → Conclusion）
+- 📋 **其他**（综述/应用笔记/技术报告/专利）→ [自由逐步总结](resources/template/general.md)（按原文章节归纳，不强制固定板块）
 
 ## 适用场景
 
@@ -54,7 +54,9 @@ Zotero 论文 PDF 一键转结构化阅读笔记——MinerU 高精度提取 →
 | `ZOTERO_NOTE_BASE_DIR` | 笔记中转输出目录 | `G:\硕士\ai\中转` |
 | `OBSIDIAN_VAULT_DIR` | Obsidian 论文仓库根目录 | `G:\硕士\论文` |
 
-> 凭据备份文件：`~/.zotero_credentials`（格式 `ZOTERO_API_KEY=...`，仅本机使用，勿分享）
+> 💡 **推荐改配置文件的路径**（`resources/config/config.json` 的 `paths` 字段），环境变量优先级更高、可临时覆盖；都不设置时回退到上表默认值（作者本地路径）。
+>
+> 凭据备份文件：`~/.zotero_credentials`（格式 `ZOTERO_API_KEY=...`，仅本机使用，勿分享）。凭据**不进**配置文件，避免随包泄露。
 
 ---
 
@@ -206,7 +208,7 @@ AI 会先弹出一个合并问题框（类型 + 压缩），之后全自动完�
 
 不设固定板块，按原文自然章节归纳。仅要求：文章首部（元数据）、结尾（结论与个人评注）、尾部标注。
 
-详见 [resources/paper.md](resources/paper.md) 和 [resources/general.md](resources/general.md)。
+详见 [resources/template/paper.md](resources/template/paper.md) 和 [resources/template/general.md](resources/template/general.md)。
 
 ---
 
@@ -265,6 +267,15 @@ Zotero 笔记中的图片采用 Base64 内嵌——只要 HTML 写入成功就�
 ---
 
 ## 版本更新记录
+
+### v1.1.3 (2026-08-15)
+
+**变更：目录重组为安装包结构 + JSON 配置化**
+
+- 📁 **模板目录** —— 两个模板移入 `resources/template/`（`paper.md` / `general.md`），skill.md/README 引用路径同步更新
+- ⚙️ **JSON 配置** —— 新增 `resources/config/`：`config.example.json`（随包分发示例）+ `config.json`（用户本地复制，入 .gitignore）；脚本真实读取，优先级 `CLI 参数 > 环境变量 > config.json > 内置默认`
+- 🔧 **MinerU `--model` 参数** —— `pipeline_prep.py` 新增 `--model`（auto/vlm/pipeline/html，默认 auto，取自 config `behavior.model`），config `behavior.timeout` 控制客户端超时
+- 📖 **README/INSTALL** —— 文件结构图重写为完整安装包结构；安装节与 Step 5 补充 config.json 复制配置说明
 
 ### v1.1.2 (2026-08-15)
 
@@ -353,15 +364,22 @@ Zotero 笔记中的图片采用 Base64 内嵌——只要 HTML 写入成功就�
 skills/Zotero pdf note to Obsidian/
 ├── skill.md                              # AI 执行指令
 ├── README.md                             # 本文档
+├── INSTALL.md                            # 安装指引（AI agent / 手动）
 ├── LICENSE                               # MIT 开源协议
+├── .gitignore                            # 排除 __pycache__、凭据、本地 config.json
 ├── scripts/                              # 可执行 Python 脚本
-│   ├── load_creds.py                     # 凭据加载模块（三级兜底）
+│   ├── load_creds.py                     # 凭据 + 配置加载（三级兜底）
 │   ├── pipeline_prep.py                  # 搜索 + PDF 定位 + MinerU 提取
 │   ├── export_to_obsidian.py             # 笔记 + 图片导入 Obsidian 仓库
+│   ├── fetch_item_meta.py                # 取条目元数据（辅助）
 │   └── md_to_html_and_write.py           # （旧）Zotero POST 版本，保留未用
-└── resources/                            # 模板与参考
-    ├── paper.md                          # 论文模板：7 板块 IMRaD
-    └── general.md                        # 通用模板：自由逐步总结
+└── resources/                            # 模板与配置
+    ├── config/                           # JSON 配置（非敏感）
+    │   ├── config.example.json           # 示例/默认值（随包分发）
+    │   └── config.json                   # 用户本地覆盖（复制 example 而来，不入库）
+    └── template/                         # 笔记改写模板
+        ├── paper.md                      # 论文模板：7 板块 IMRaD
+        └── general.md                    # 通用模板：自由逐步总结
 ```
 
 ---
