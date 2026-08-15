@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Credentials — never commit secrets
+.zotero_credentials
+
+# OS
+Thumbs.db
+.DS_Store
