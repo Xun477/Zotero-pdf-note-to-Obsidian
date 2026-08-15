@@ -9,7 +9,7 @@ Zotero 论文 PDF 一键转结构化阅读笔记——MinerU 高精度提取 →
 1. 把 `Zotero pdf note to Obsidian` 文件夹复制到 skill 目录（Claude Code 为 `~/.claude/skills/`，Windows 为 `%USERPROFILE%\.claude\skills\`）
 2. `pip install httpx Pillow mineru-open-api`
 3. 配置三个凭据：`ZOTERO_API_KEY`、`ZOTERO_USER_ID`（默认值是作者 ID，**必须改自己的**）、`MINERU_TOKEN`
-4. 配置三个路径：复制 `resources/config/config.example.json` → `resources/config/config.json` 并修改（推荐），或用环境变量 `ZOTERO_STORAGE_DIR`、`ZOTERO_NOTE_BASE_DIR`、`OBSIDIAN_VAULT_DIR` 覆盖
+4. 配置两个路径：复制 `resources/config/config.example.json` → `resources/config/config.json` 并修改（推荐），或用环境变量 `ZOTERO_STORAGE_DIR`、`OBSIDIAN_VAULT_DIR` 覆盖
 
 > 🪪 **开源协议：** 本 skill 以 **MIT** 协议发布，见 [LICENSE](LICENSE)。
 
@@ -51,7 +51,6 @@ Zotero 论文 PDF 一键转结构化阅读笔记——MinerU 高精度提取 →
 | 变量 | 用途 | 默认值 |
 |---|---|---|
 | `ZOTERO_STORAGE_DIR` | Zotero 附件存储目录（`storage` 文件夹） | `G:\硕士\Zotero\storage` |
-| `ZOTERO_NOTE_BASE_DIR` | 笔记中转输出目录 | `G:\硕士\ai\中转` |
 | `OBSIDIAN_VAULT_DIR` | Obsidian 论文仓库根目录 | `G:\硕士\论文` |
 
 > 💡 **推荐改配置文件的路径**（`resources/config/config.json` 的 `paths` 字段），环境变量优先级更高、可临时覆盖；都不设置时回退到上表默认值（作者本地路径）。
@@ -166,7 +165,7 @@ AI 会先弹出一个合并问题框（类型 + 压缩），之后全自动完�
 1. **前置提问** —— 一次弹窗：PDF 类型（论文/其他）+ 是否压缩图片
 2. **pipeline_prep.py** —— 搜索 Zotero → 定位 PDF → 创建目录 → MinerU 提取（一条命令）
 3. **AI 改写** → 按选择的模板生成结构化笔记
-4. **export_to_obsidian.py** —— 笔记（带 YAML frontmatter）+ 图片导入 Obsidian 论文仓库
+4. **export_to_obsidian.py** —— 就地生成最终笔记（YAML frontmatter + 图片附录兜底）+ 清理中间 `_note.md`
 
 ### 最后一步：查看笔记
 
@@ -178,15 +177,12 @@ AI 会先弹出一个合并问题框（类型 + 压缩），之后全自动完�
 ## 输出结构
 
 ```
-{ZOTERO_NOTE_BASE_DIR}\{PDF文件名}_{序号}/      ← 工作目录（临时，默认 G:\硕士\ai\中转）
-  ├── {PDF文件名}.md              ← MinerU 原始完整 MD
-  ├── {PDF文件名}_note.md         ← AI 结构化笔记
-  └── images/                     ← MinerU 提取的图表
-
-{OBSIDIAN_VAULT_DIR}\文献\{论文名}/            ← Obsidian 论文仓库（最终产物，默认 G:\硕士\论文）
-  ├── {论文名}.md                 ← 笔记：YAML frontmatter + 正文
-  └── images/                     ← 复制的图片（与笔记同目录，相对引用）
+{OBSIDIAN_VAULT_DIR}\文献\{论文名}/            ← Obsidian 论文仓库（MinerU 输出与最终笔记都在这里，默认 G:\硕士\论文）
+  ├── {论文名}.md                 ← 最终笔记：YAML frontmatter + 正文
+  └── images/                     ← 图片（与笔记同目录，相对引用）
 ```
+
+**无中转目录** —— MinerU 提取的 `{论文名}.md` + `images/` 直接写入 vault；AI 改写后由导出脚本就地生成最终笔记并清理中间 `_note.md`。每篇论文固定一个文件夹，重跑覆盖（Obsidian 一论文一文件夹）。
 
 ---
 
@@ -239,7 +235,7 @@ AI 会先弹出一个合并问题框（类型 + 压缩），之后全自动完�
 
 ### Q5: 同一篇论文跑两次会覆盖吗？
 
-不会。输出目录自动递增：`_01`, `_02`, ...。每次运行独立保存。但在 Zotero 中每次会创建一个新的子笔记。
+会，且这是预期行为。每篇论文固定写入 `{OBSIDIAN_VAULT_DIR}\文献\{论文名}\`，重跑会先清空该目录下的旧 `.md` 与 `images/` 再写入新笔记——Obsidian 中一个文件夹始终对应一篇论文的最新笔记。
 
 ### Q6: 扫描版 PDF 图片/表格能提取吗？
 
@@ -267,6 +263,15 @@ Zotero 笔记中的图片采用 Base64 内嵌——只要 HTML 写入成功就�
 ---
 
 ## 版本更新记录
+
+### v1.2.0 (2026-08-15)
+
+**变更：去掉中转目录，流程简化**
+
+- 🗑️ **无中转目录** —— 删除 `ZOTERO_NOTE_BASE_DIR` / `--base-dir` / `paths.base_dir`（全部移除，无遗留）。MinerU 提取直接输出到 Obsidian 仓库 `{OBSIDIAN_VAULT_DIR}\文献\{论文名}\`
+- 📁 **固定目录覆盖** —— 每篇论文固定一个 vault 文件夹（无 `_01/_02` 序号），重跑先清空旧产物再写入，Obsidian 一论文一文件夹
+- ✂️ **导出简化** —— `export_to_obsidian.py` 移除 `--output-dir`/`--vault-dir`/`--subdir`，目录全部从 `--md-file` 推导；完成后自动删除中间 `_note.md`
+- 🔧 **路径配置收敛** —— 环境变量仅剩 `ZOTERO_STORAGE_DIR`、`OBSIDIAN_VAULT_DIR`；vault 子目录 `文献` 可改 config `behavior.subdir`
 
 ### v1.1.3 (2026-08-15)
 

@@ -63,16 +63,17 @@ Write-Output "heartbeat"
 一条命令完成原步骤 2-5 的全部机械操作：
 
 ```powershell
-python "$env:USERPROFILE\.claude\skills\Zotero pdf note to Obsidian\scripts\pipeline_prep.py" --query "论文标题关键词" --base-dir $env:ZOTERO_NOTE_BASE_DIR
+python "$env:USERPROFILE\.claude\skills\Zotero pdf note to Obsidian\scripts\pipeline_prep.py" --query "论文标题关键词"
 ```
 
-> 脚本路径随 skill 安装位置而定，此处用 `$env:USERPROFILE\.claude\skills\...` 作通用占位。`--base-dir` 默认取环境变量 `ZOTERO_NOTE_BASE_DIR`（未设置时依次回退 `resources/config/config.json` 的 `paths.base_dir` → `G:\硕士\ai\中转`）；Zotero 附件目录同理可用 `--storage-dir`、`ZOTERO_STORAGE_DIR` 或配置文件的 `paths.storage_dir` 覆盖。
+> 脚本路径随 skill 安装位置而定，此处用 `$env:USERPROFILE\.claude\skills\...` 作通用占位。**无中转目录**：MinerU 提取直接输出到 Obsidian 仓库 `$OBSIDIAN_VAULT_DIR\文献\{pdf名}\`（无 `_01/_02` 序号，固定目录，重跑覆盖）。仓库根目录默认取环境变量 `OBSIDIAN_VAULT_DIR`（未设置时依次回退 `resources/config/config.json` 的 `paths.vault_dir` → `G:\硕士\论文`），子目录 `文献` 可改 config `behavior.subdir` 或 `--subdir`。Zotero 附件目录可用 `--storage-dir`、`ZOTERO_STORAGE_DIR` 或配置文件的 `paths.storage_dir` 覆盖。
 
 输出 JSON（agent 解析后获取后续步骤所需的所有路径和 key）：
 
 ```json
-{"item_key": "ABC123", "title": "...", "pdf_path": "G:\\...",
- "output_dir": "G:\\...\\paper_01", "md_file": "G:\\...\\paper_01\\paper.md"}
+{"item_key": "ABC123", "title": "...", "pdf_path": "G:\\硕士\\Zotero\\storage\\XXXX\\paper.pdf",
+ "output_dir": "G:\\硕士\\论文\\文献\\paper", "md_file": "G:\\硕士\\论文\\文献\\paper\\paper.md",
+ "pdf_name": "paper"}
 ```
 
 - 如果搜索结果不对，用 `--item-key` 直接指定 Zotero 条目 Key 跳过搜索
@@ -93,10 +94,10 @@ python "$env:USERPROFILE\.claude\skills\Zotero pdf note to Obsidian\scripts\pipe
 ### 步骤 4 — export_to_obsidian.py（导出 Markdown + 图片到 Obsidian）
 
 ```powershell
-python "$env:USERPROFILE\.claude\skills\Zotero pdf note to Obsidian\scripts\export_to_obsidian.py" --md-file "{output_dir}\{pdf名}_note.md" --output-dir "{output_dir}" --pdf-name "{pdf名}" --item-key "{item_key}" --compress
+python "$env:USERPROFILE\.claude\skills\Zotero pdf note to Obsidian\scripts\export_to_obsidian.py" --md-file "{output_dir}\{pdf名}_note.md" --pdf-name "{pdf名}" --item-key "{item_key}" --compress
 ```
 
-步骤 1 选不压缩时去掉 `--compress`。`--pdf-name` 取步骤 2 输出 JSON 里的 `pdf_name`。脚本把笔记（自动加 YAML frontmatter）+ `images/` 写入 Obsidian 仓库 `文献\{pdf名}\`，输出 `Vault Note: <路径>` 和 `Result: OK` 即为成功。图片引用保持 `![](images/xxx.png)` 相对路径，Obsidian 内正常渲染。Obsidian 仓库根目录默认取环境变量 `OBSIDIAN_VAULT_DIR`（未设置时依次回退 `resources/config/config.json` 的 `paths.vault_dir` → `G:\硕士\论文`），也可用 `--vault-dir` 覆盖。
+步骤 1 选不压缩时去掉 `--compress`。`--pdf-name` 取步骤 2 输出 JSON 里的 `pdf_name`。笔记 + `images/` 已在 Obsidian 仓库 `文献\{pdf名}\` 内，脚本就地完成：自动加 YAML frontmatter、把未被正文引用的图片追加到文末 `## 📷 全部图片 / 图片附录`（兜底保证图片一张不丢）、写入最终 `{pdf名}.md`，成功后**自动删除中间产物 `{pdf名}_note.md`**——目录最终只留笔记 + `images/`。输出 `Vault Note: <路径>` 和 `Result: OK` 即为成功。图片引用保持 `![](images/xxx.png)` 相对路径，Obsidian 内正常渲染。
 
 > 脚本直接从 `scripts/` 运行，`load_creds.py` 在同目录。
 

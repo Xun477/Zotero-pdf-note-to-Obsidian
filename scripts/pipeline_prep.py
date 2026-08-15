@@ -5,21 +5,23 @@ Searches Zotero, locates the PDF, creates an output directory, and runs
 MinerU extraction — all in one call. Outputs JSON for the agent to consume.
 
 Usage:
-  python pipeline_prep.py --query "paper title" --base-dir "G:\硕士\ai\中转"
-  python pipeline_prep.py --query "paper title" --base-dir "..." --ocr
+  python pipeline_prep.py --query "paper title"
+  python pipeline_prep.py --query "paper title" --ocr
 
-Paths are configurable via env vars (or --base-dir / --storage-dir):
-  ZOTERO_NOTE_BASE_DIR   base output dir for notes (default G:\硕士\ai\中转)
-  ZOTERO_STORAGE_DIR     Zotero attachment storage dir (default G:\硕士\Zotero\storage)
+No staging/中转 folder: MinerU output is written directly into the Obsidian
+vault at <vault>/<subdir>/<pdf_name>/. Paths are configurable via env vars (or
+CLI flags / resources/config/*.json, env wins):
+  ZOTERO_STORAGE_DIR    Zotero attachment storage dir (default G:\硕士\Zotero\storage)
+  OBSIDIAN_VAULT_DIR    Obsidian vault root (default G:\硕士\论文)
 
 Output JSON:
   {"item_key": "ABC123", "title": "...", "pdf_path": "G:\\...",
-   "output_dir": "G:\\...\\paper_01", "md_file": "G:\\...\\paper_01\\paper.md",
+   "output_dir": "G:\\硕士\\论文\\文献\\paper", "md_file": "G:\\...\\paper\\paper.md",
    "pdf_name": "paper"}
 
 """
 
-import os, sys, json, argparse, subprocess, re
+import os, sys, json, argparse, subprocess, shutil
 
 # Ensure we can import load_creds from the same directory
 _script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -53,10 +55,11 @@ def _d(env_name, cfg_path, fallback):
 parser = argparse.ArgumentParser(description='Zotero search + PDF locate + MinerU extract')
 parser.add_argument('--query', required=True, help='Paper title or keywords')
 parser.add_argument('--item-key', default=None, help='Skip search, use this Zotero item key directly')
-parser.add_argument('--base-dir', default=_d('ZOTERO_NOTE_BASE_DIR', 'paths.base_dir', r'G:\硕士\ai\中转'), help='Base output directory (env: ZOTERO_NOTE_BASE_DIR)')
 parser.add_argument('--ocr', action='store_true', default=False, help='Enable OCR mode for MinerU')
 parser.add_argument('--user-id', default=None, help='Zotero user ID')
 parser.add_argument('--storage-dir', default=_d('ZOTERO_STORAGE_DIR', 'paths.storage_dir', r'G:\硕士\Zotero\storage'), help='Zotero attachment storage dir (env: ZOTERO_STORAGE_DIR)')
+parser.add_argument('--vault-dir', default=_d('OBSIDIAN_VAULT_DIR', 'paths.vault_dir', r'G:\硕士\论文'), help='Obsidian vault root (env: OBSIDIAN_VAULT_DIR)')
+parser.add_argument('--subdir', default=_d(None, 'behavior.subdir', '文献'), help='Subfolder inside the vault')
 parser.add_argument('--model', default=_d(None, 'behavior.model', 'auto'), help='MinerU model: auto / vlm / pipeline / html (default: auto)')
 args = parser.parse_args()
 
@@ -135,25 +138,21 @@ if not os.path.exists(pdf_path):
 print(f'[pipeline] PDF: {pdf_path}', file=sys.stderr)
 
 # ============================================================
-# Phase 3: Create output directory
+# Phase 3: Create output directory (directly in the Obsidian vault)
 # ============================================================
 pdf_name = os.path.splitext(child_filename)[0]
-base_dir = args.base_dir
-
-# Find existing dirs with same prefix, increment sequence
-existing = []
-if os.path.isdir(base_dir):
-    for name in os.listdir(base_dir):
-        full = os.path.join(base_dir, name)
-        if os.path.isdir(full) and name.startswith(pdf_name):
-            m = re.search(r'_(\d+)$', name)
-            if m:
-                existing.append(int(m.group(1)))
-
-seq = max(existing) + 1 if existing else 1
-folder_name = f'{pdf_name}_{seq:02d}'
-output_dir = os.path.join(base_dir, folder_name)
+output_dir = os.path.join(args.vault_dir, args.subdir, pdf_name)
 os.makedirs(output_dir, exist_ok=True)
+
+# Fixed folder per paper (no _01/_02 sequence). Re-running overwrites the
+# previous run: clear last run's artifacts so stale images/md never leak
+# into the appendix. Keep the folder itself.
+for entry in os.listdir(output_dir):
+    full = os.path.join(output_dir, entry)
+    if entry == 'images' and os.path.isdir(full):
+        shutil.rmtree(full)
+    elif os.path.isfile(full) and (entry.endswith('.md') or entry.endswith('_note.md')):
+        os.remove(full)
 print(f'[pipeline] Output dir: {output_dir}', file=sys.stderr)
 
 # ============================================================
@@ -181,7 +180,6 @@ if args.model and args.model != 'auto':
     cmd += ['--model', args.model]
 
 # Resolve full path: npm global packages may have .cmd wrappers not on subprocess PATH
-import shutil
 _exe = shutil.which('mineru-open-api') or shutil.which('mineru-open-api.cmd')
 if _exe:
     cmd[0] = _exe

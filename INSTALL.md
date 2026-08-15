@@ -205,7 +205,7 @@ them permanent:
 
 ---
 
-## Step 5: Configure the three filesystem paths
+## Step 5: Configure the two filesystem paths
 
 The skill defaults to the author's local paths (`G:\硕士\...`). Every user must
 point these at their own machine. Two ways to do it — **recommended: edit the
@@ -229,20 +229,19 @@ cd "$env:USERPROFILE\.claude\skills\Zotero pdf note to Obsidian"
 Copy-Item resources\config\config.example.json resources\config\config.json
 ```
 
-Then open `resources/config/config.json` and set the three paths (and optionally
+Then open `resources/config/config.json` and set the two paths (and optionally
 `behavior`: `subdir`, `compress`, `model`, `timeout`). The scripts read it at
 startup — no restart needed.
 
 ### 5b. Alternative: environment variables
 
-Three environment variables override the config file (env > config.json >
+Two environment variables override the config file (env > config.json >
 built-in default). The scripts also accept equivalent CLI flags.
 
 | Env var | What it is | CLI flag | Author default |
 | :-- | :-- | :-- | :-- |
 | `ZOTERO_STORAGE_DIR` | Where Zotero stores PDF attachments (`.../Zotero/storage`) | `--storage-dir` (pipeline_prep) | `G:\硕士\Zotero\storage` |
-| `ZOTERO_NOTE_BASE_DIR` | Scratch dir for MinerU output + rewritten note | `--base-dir` (pipeline_prep) | `G:\硕士\ai\中转` |
-| `OBSIDIAN_VAULT_DIR` | Obsidian vault root (note goes to `<vault>/文献/<paper>/`) | `--vault-dir` (export) | `G:\硕士\论文` |
+| `OBSIDIAN_VAULT_DIR` | Obsidian vault root (note goes to `<vault>/文献/<paper>/`) | `--vault-dir` (pipeline_prep) | `G:\硕士\论文` |
 
 How to find your values:
 
@@ -257,7 +256,6 @@ Set them (POSIX):
 
 ```bash
 export ZOTERO_STORAGE_DIR="/home/you/Zotero/storage"
-export ZOTERO_NOTE_BASE_DIR="/tmp/zotero-notes"
 export OBSIDIAN_VAULT_DIR="/home/you/Documents/notes"
 ```
 
@@ -265,7 +263,6 @@ export OBSIDIAN_VAULT_DIR="/home/you/Documents/notes"
 
 ```powershell
 [System.Environment]::SetEnvironmentVariable('ZOTERO_STORAGE_DIR', 'C:\Users\you\Zotero\storage', 'User')
-[System.Environment]::SetEnvironmentVariable('ZOTERO_NOTE_BASE_DIR', 'D:\zotero-notes', 'User')
 [System.Environment]::SetEnvironmentVariable('OBSIDIAN_VAULT_DIR', 'D:\ObsidianVault', 'User')
 ```
 
@@ -302,8 +299,8 @@ python3 -c "import sys; sys.path.insert(0, '<TARGET>/Zotero pdf note to Obsidian
 ```
 
 It should print a dict from `resources/config/`. To verify your override works,
-edit `paths.base_dir` in your local `resources/config/config.json` (Step 5a)
-and re-run the command — the printed `base_dir` should change to your value.
+edit `paths.vault_dir` in your local `resources/config/config.json` (Step 5a)
+and re-run the command — the printed `vault_dir` should change to your value.
 (Environment variables take priority at runtime, as documented in Step 5b.)
 
 **If it fails:**

@@ -1,27 +1,28 @@
 # -*- coding: utf-8 -*-
-"""Export the AI-rewritten reading note to the Obsidian paper vault.
+"""Finalize the AI-rewritten reading note directly inside the Obsidian vault.
 
-Reads the _note.md and its images/ directory from the MinerU output folder,
-writes the note (with YAML frontmatter) plus copies the images into:
-
-    <vault-dir>/<subdir>/<pdf_name>/<pdf_name>.md      (+ images/)
+There is no staging folder: pipeline_prep.py already wrote the MinerU output
+(<pdf_name>.md + images/) into <vault>/文献/<pdf_name>/, and the AI rewrite
+step produced <pdf_name>_note.md in the same folder. This script reads that
+_note.md, adds YAML frontmatter, appends any unreferenced images to the
+appendix (hard guarantee nothing is dropped), compresses optionally, writes
+the final <pdf_name>.md, and removes the intermediate _note.md.
 
 Image references stay as relative "images/xxx.png" paths, which resolve
 naturally inside Obsidian because images/ lives next to the note.
 
 Usage:
-  python export_to_obsidian.py --md-file "<out>\<pdf名>_note.md" \
-      --output-dir "<out>" --pdf-name "<pdf名>" --item-key <key> \
-      [--vault-dir "G:\硕士\论文"] [--subdir 文献] [--compress]
+  python export_to_obsidian.py --md-file "<vault>\文献\<pdf名>\<pdf名>_note.md" \
+      --pdf-name "<pdf名>" --item-key <key> [--compress]
 
 Args:
   --md-file      Path to the _note.md produced by the AI rewrite step
-  --output-dir   MinerU output directory (contains images/)
-  --pdf-name     Paper name used for the vault folder and note filename
+                 (all output dirs are derived from it — the vault folder is
+                 the note's parent, images/ lives next to it)
+  --pdf-name     Paper name used for the final note filename
   --item-key     Zotero parent item key (used for the zotero frontmatter link)
-  --vault-dir    Obsidian vault root (env: OBSIDIAN_VAULT_DIR, default G:\硕士\论文)
-  --subdir       Subfolder inside the vault for paper notes (default 文献)
-  --compress     Resize images wider than 800px, keep original format
+  --compress     Resize images wider than 800px (default from config
+                 behavior.compress)
   --user-id      Zotero user ID (default from load_creds / env ZOTERO_USER_ID)
 """
 
@@ -57,12 +58,9 @@ def _d(env_name, cfg_path, fallback):
 # Parse args
 # ============================================================
 parser = argparse.ArgumentParser(description='Export note + images to Obsidian vault')
-parser.add_argument('--md-file', required=True, help='Path to the _note.md')
-parser.add_argument('--output-dir', required=True, help='MinerU output dir (contains images/)')
-parser.add_argument('--pdf-name', required=True, help='Paper name for vault folder/note')
+parser.add_argument('--md-file', required=True, help='Path to the _note.md (vault folder + images/ derived from it)')
+parser.add_argument('--pdf-name', required=True, help='Paper name used for the final note filename')
 parser.add_argument('--item-key', default=None, help='Zotero parent item key (for zotero link)')
-parser.add_argument('--vault-dir', default=_d('OBSIDIAN_VAULT_DIR', 'paths.vault_dir', r'G:\硕士\论文'), help='Obsidian vault root (env: OBSIDIAN_VAULT_DIR)')
-parser.add_argument('--subdir', default=_d(None, 'behavior.subdir', '文献'), help='Subfolder inside the vault')
 parser.add_argument('--compress', action='store_true', default=None, help='Resize images >800px (default from config behavior.compress)')
 parser.add_argument('--user-id', default=None, help='Zotero user ID')
 args = parser.parse_args()
@@ -182,26 +180,23 @@ with open(md_file, 'r', encoding='utf-8') as f:
     note = f.read()
 
 # ============================================================
-# Build vault paths
+# Build vault paths (derived from the note's own location)
 # ============================================================
 pdf_name = sanitize(args.pdf_name) or 'note'
-vault_note_dir = os.path.join(args.vault_dir, args.subdir, pdf_name)
+vault_note_dir = os.path.dirname(os.path.abspath(md_file))
 vault_note_path = os.path.join(vault_note_dir, pdf_name + '.md')
 os.makedirs(vault_note_dir, exist_ok=True)
 
 # ============================================================
-# Copy images
+# Process images (already in the vault folder — compress in place if asked)
 # ============================================================
-src_images = os.path.join(args.output_dir, 'images')
-dst_images = os.path.join(vault_note_dir, 'images')
-copied = 0
-if os.path.isdir(src_images):
-    os.makedirs(dst_images, exist_ok=True)
-    for fname in os.listdir(src_images):
-        src = os.path.join(src_images, fname)
+images_dir = os.path.join(vault_note_dir, 'images')
+processed = 0
+if os.path.isdir(images_dir):
+    for fname in os.listdir(images_dir):
+        src = os.path.join(images_dir, fname)
         if not os.path.isfile(src):
             continue
-        dst = os.path.join(dst_images, fname)
         if args.compress:
             try:
                 from PIL import Image
@@ -211,25 +206,25 @@ if os.path.isdir(src_images):
                     ratio = 800.0 / max(w, h)
                     img = img.resize((int(w * ratio), int(h * ratio)), Image.LANCZOS)
                 fmt = (img.format or 'JPEG').upper()
+                tmp = src + '.tmp'
                 if fmt == 'PNG':
-                    img.save(dst, format='PNG', optimize=True)
+                    img.save(tmp, format='PNG', optimize=True)
                 elif fmt == 'JPEG':
-                    img.save(dst, format='JPEG', quality=85, optimize=True)
+                    img.save(tmp, format='JPEG', quality=85, optimize=True)
                 else:
-                    img.save(dst, format=fmt, quality=85)
+                    img.save(tmp, format=fmt, quality=85)
+                img.close()
+                os.replace(tmp, src)   # atomic overwrite of the same path
             except Exception as e:
-                print(f'  compress error for {fname}: {e}, copying original')
-                shutil.copy2(src, dst)
-        else:
-            shutil.copy2(src, dst)
-        copied += 1
-print(f'Images copied: {copied}')
+                print(f'  compress error for {fname}: {e}, keeping original')
+        processed += 1
+print(f'Images processed: {processed} (compress={args.compress})')
 
 # ============================================================
 # Append unreferenced images (hard guarantee: nothing dropped)
 # ============================================================
 body, tail = split_tail(note)
-body, tail, appended = ensure_appendix(body, tail, dst_images)
+body, tail, appended = ensure_appendix(body, tail, images_dir)
 note_final = (body.rstrip('\n') + '\n\n' + tail + '\n') if tail else body.rstrip('\n') + '\n'
 if appended:
     print(f'[appendix] 自动补齐 {len(appended)} 张未引用图片 → {APPENDIX_HEADING}: {appended}')
@@ -256,15 +251,15 @@ if len(headings) < 3:
     problems.append(f'note has fewer than 3 headings ({len(headings)})')
 
 refs = IMG_REF_RE.findall(note_final)
-missing = [r for r in refs if not os.path.isfile(os.path.join(dst_images, r))]
+missing = [r for r in refs if not os.path.isfile(os.path.join(images_dir, r))]
 if missing:
     problems.append(f'{len(missing)} referenced image(s) missing: {missing[:3]}')
-if refs and copied == 0:
-    problems.append('note references images but none were copied')
+if refs and processed == 0:
+    problems.append('note references images but none are present on disk')
 
 # Reverse invariant: every on-disk image must now be referenced (body or appendix).
-if os.path.isdir(dst_images):
-    disk = set(f for f in os.listdir(dst_images) if os.path.isfile(os.path.join(dst_images, f)))
+if os.path.isdir(images_dir):
+    disk = set(f for f in os.listdir(images_dir) if os.path.isfile(os.path.join(images_dir, f)))
     unref = sorted(f for f in disk if f not in set(refs))
     if unref:
         problems.append(f'{len(unref)} image(s) on disk never referenced: {unref[:3]}')
@@ -281,3 +276,12 @@ if problems:
     sys.exit(1)
 
 print('Result: OK')
+
+# Clean up the intermediate _note.md so the vault folder keeps only the
+# final note (+ images/). Only ever remove a _note.md.
+if os.path.exists(md_file) and md_file.endswith('_note.md') and os.path.abspath(md_file) != os.path.abspath(vault_note_path):
+    try:
+        os.remove(md_file)
+        print(f'[cleanup] Removed intermediate note: {md_file}')
+    except OSError as e:
+        print(f'[cleanup] Could not remove {md_file}: {e}')
