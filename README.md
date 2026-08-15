@@ -80,7 +80,7 @@ Zotero Web API 是本 skill 的**核心依赖**，用于将笔记写入 Zotero �
 [System.Environment]::SetEnvironmentVariable('ZOTERO_USER_ID', '你的数字UserID', 'User')
 ```
 
-或者写入凭据备份文件 `C:\Users\ASUS\.zotero_credentials`：
+或者写入凭据备份文件 `~\.zotero_credentials`：
 
 ```
 ZOTERO_API_KEY=你的24位API密钥

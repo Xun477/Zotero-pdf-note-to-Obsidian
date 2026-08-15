@@ -5,9 +5,9 @@ description: Zotero PDF to structured reading notes. Use when the user asks to �
 
 # Zotero PDF Note to Obsidian
 
-把 Zotero 中的论文 PDF 一键转为结构化阅读笔记。MinerU 高精度提取 MD（自带图片引用）→ AI 直接在 MD 上改写为结构化笔记 → 导出 Markdown + 图片到 Obsidian 论文仓库（`G:\硕士\论文`）。用户只需告诉论文标题。
+把 Zotero 中的论文 PDF 一键转为结构化阅读笔记。MinerU 高精度提取 MD（自带图片引用）→ AI 直接在 MD 上改写为结构化笔记 → 导出 Markdown + 图片到 Obsidian 论文仓库（`$OBSIDIAN_VAULT_DIR`，默认 `G:\硕士\论文`）。用户只需告诉论文标题。
 
-凭据通过环境变量管理：`ZOTERO_API_KEY`、`ZOTERO_USER_ID`、`MINERU_TOKEN`。凭据备份文件 `C:\Users\ASUS\.zotero_credentials`。`ZOTERO_API_KEY` 用于搜索条目/定位 PDF（只读）；笔记写入 Obsidian 仓库本地文件，无需 Zotero 写入权限。Python 脚本一律写成 `.py` 文件再执行，避免 `python -c` 内联。
+凭据通过环境变量管理：`ZOTERO_API_KEY`、`ZOTERO_USER_ID`、`MINERU_TOKEN`。凭据备份文件 `~\.zotero_credentials`（Windows 为 `%USERPROFILE%\.zotero_credentials`）。`ZOTERO_API_KEY` 用于搜索条目/定位 PDF（只读）；笔记写入 Obsidian 仓库本地文件，无需 Zotero 写入权限。Python 脚本一律写成 `.py` 文件再执行，避免 `python -c` 内联。
 
 ## 依赖检查
 
@@ -39,7 +39,7 @@ Write-Output "heartbeat"
 
 ### Obsidian 导出
 
-`export_to_obsidian.py` 是本地文件写入（复制笔记 + 图片到仓库），无网络 POST。同一篇论文重复导出会覆盖 `G:\硕士\论文\文献\{pdf名}\` 下的旧笔记。
+`export_to_obsidian.py` 是本地文件写入（复制笔记 + 图片到仓库），无网络 POST。同一篇论文重复导出会覆盖 `$OBSIDIAN_VAULT_DIR\文献\{pdf名}\` 下的旧笔记。
 
 ## 流程
 
@@ -102,7 +102,7 @@ python "$env:USERPROFILE\.claude\skills\Zotero pdf note to Obsidian\scripts\expo
 
 ### 步骤 5 — 告知查看位置
 
-告诉用户在 Obsidian 打开论文仓库查看笔记（`G:\硕士\论文\文献\{pdf名}\`）。Obsidian 会自动索引新文件，必要时按 Ctrl+R 刷新。如需笔记也在 Zotero 里，可在 Zotero 中 `右键条目 → 添加笔记` 手动粘贴。
+告诉用户在 Obsidian 打开论文仓库查看笔记（`$OBSIDIAN_VAULT_DIR\文献\{pdf名}\`）。Obsidian 会自动索引新文件，必要时按 Ctrl+R 刷新。如需笔记也在 Zotero 里，可在 Zotero 中 `右键条目 → 添加笔记` 手动粘贴。
 
 ## MinerU 注意事项
 
