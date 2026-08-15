@@ -11,6 +11,8 @@ Zotero 论文 PDF 一键转结构化阅读笔记——MinerU 高精度提取 →
 3. 配置三个凭据：`ZOTERO_API_KEY`、`ZOTERO_USER_ID`（默认值是作者 ID，**必须改自己的**）、`MINERU_TOKEN`
 4. 配置三个路径环境变量：`ZOTERO_STORAGE_DIR`、`ZOTERO_NOTE_BASE_DIR`、`OBSIDIAN_VAULT_DIR`
 
+> 🪪 **开源协议：** 本 skill 以 **MIT** 协议发布，见 [LICENSE](LICENSE)。
+
 ## 一句话简介
 
 把"下载论文 → 读论文 → 做笔记"的 1-2 小时手工劳动压缩为 ~3 分钟自动完成。你在 Zotero 里存了 PDF，说一声论文标题，结构化笔记就出现在 Obsidian 论文仓库。
@@ -351,6 +353,7 @@ Zotero 笔记中的图片采用 Base64 内嵌——只要 HTML 写入成功就�
 skills/Zotero pdf note to Obsidian/
 ├── skill.md                              # AI 执行指令
 ├── README.md                             # 本文档
+├── LICENSE                               # MIT 开源协议
 ├── scripts/                              # 可执行 Python 脚本
 │   ├── load_creds.py                     # 凭据加载模块（三级兜底）
 │   ├── pipeline_prep.py                  # 搜索 + PDF 定位 + MinerU 提取

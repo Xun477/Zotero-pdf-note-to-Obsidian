@@ -72,7 +72,7 @@ The skill is the `Zotero pdf note to Obsidian` folder in this repository: a
 
 ```bash
 rm -rf /tmp/zpno-src
-git clone --depth 1 https://github.com/<your-org>/zotero-pdf-note-to-obsidian.git /tmp/zpno-src
+git clone --depth 1 https://github.com/luxiaxun70-creator/Zotero-pdf-note-to-Obsidian.git /tmp/zpno-src
 mkdir -p ~/.claude/skills/"Zotero pdf note to Obsidian"   # replace with your TARGET
 cp -R "/tmp/zpno-src/Zotero pdf note to Obsidian/." ~/.claude/skills/"Zotero pdf note to Obsidian"/
 ```
@@ -95,7 +95,7 @@ refreshes the skill.
 `skills` is a third-party CLI for installing agent skills. It is not required.
 
 ```bash
-npx -y skills add <your-org>/zotero-pdf-note-to-obsidian
+npx -y skills add luxiaxun70-creator/Zotero-pdf-note-to-Obsidian
 ```
 
 **If it fails** (the command is unavailable, or it does not place the folder under
@@ -146,10 +146,10 @@ library and locate the PDF attachment.
 
 1. Open https://www.zotero.org/settings/keys
 2. Click **Create New Private Key**.
-3. Under "Personal Library", check **Allow notes access** and **Allow write
-   access** (write is not used by this skill, but the note is written locally to
-   Obsidian — read is the essential permission; grant what the user is
-   comfortable with).
+3. Under "Personal Library", check **Allow notes access**. (Write access is
+   optional — this skill only reads Zotero and writes the note to a local
+   Obsidian vault, so it never needs the write permission. Grant read-only
+   access for least privilege.)
 4. Save and copy the 24-character key.
 
 Set it:
@@ -265,8 +265,11 @@ python3 "<TARGET>/Zotero pdf note to Obsidian/scripts/pipeline_prep.py" --help
 python3 "<TARGET>/Zotero pdf note to Obsidian/scripts/export_to_obsidian.py" --help
 ```
 
-Both should print usage text with the env-var-aware defaults
-(`ZOTERO_NOTE_BASE_DIR`, `ZOTERO_STORAGE_DIR`, `OBSIDIAN_VAULT_DIR` in the help).
+Both should print usage text, and each option that has a default shows it as
+`(default: <value>)`. Set one of the env vars (Step 5) and re-run the same
+`--help` — the default shown for that path should change to your value. If you
+set the env var and the help still shows the author's fallback path, the variable
+was not set for this shell (Step 5's persistence step).
 
 **If it fails:**
 - `ModuleNotFoundError` -> the Python packages from Step 3 are missing.
