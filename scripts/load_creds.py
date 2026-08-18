@@ -43,13 +43,14 @@ def get_api_key():
 
     if not api_key:
         print('ERROR: Cannot load ZOTERO_API_KEY from env, file, or registry.')
+        print('修复：setx ZOTERO_API_KEY "你的24位密钥"，或写入 ~\\.zotero_credentials（ZOTERO_API_KEY=...），然后重开终端。')
         sys.exit(1)
 
     return api_key
 
 
-def get_user_id(default='21068406'):
-    """Return ZOTERO_USER_ID from env, or fall back to default."""
+def get_user_id(default=''):
+    """Return ZOTERO_USER_ID from env (no built-in default; must be configured)."""
     return os.environ.get('ZOTERO_USER_ID', default)
 
 

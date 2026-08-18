@@ -127,13 +127,13 @@ def build_frontmatter(note, pdf_name):
     lines.append('---')
     return '\n'.join(lines) + '\n'
 
-FOOTER_MARKERS = ('> 📝 本文由 MinerU 提取', '> 📁 图片目录')
+FOOTER_MARKERS = ('> 本文由 MinerU 提取', '> 图片目录')
 
 def split_tail(note):
     """把结尾 footer（blockquote 及其前导 ---）从笔记中切出，返回 (body, tail)。
 
     捕获从第一个 footer 标记行开始、直到末尾的整段 blockquote（连续的 > 行，
-    可能含 `> 📝 ...` + `> 📁 ...` 等多行）。无 footer 时返回 (note, '')。
+    可能含 `> 本文由 MinerU 提取 ...` + `> 图片目录 ...` 等多行）。无 footer 时返回 (note, '')。
     """
     lines = note.rstrip('\n').split('\n')
     tail_start = None
@@ -151,7 +151,7 @@ def split_tail(note):
         tail_start -= 1
     return '\n'.join(lines[:tail_start]), '\n'.join(lines[tail_start:])
 
-APPENDIX_HEADING = '## 📷 全部图片 / 图片附录'
+APPENDIX_HEADING = '## 全部图片 / 图片附录'
 
 def ensure_appendix(body, tail, dst_images):
     """把磁盘上未被正文引用的图片追加到附录。幂等：以已引用文件名集合去重。"""

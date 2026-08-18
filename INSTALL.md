@@ -110,7 +110,7 @@ your harness's skill directory): fall back to Path A, which needs only git.
 
 ## Step 3: Install the Python dependencies
 
-The scripts need Python 3.9+ and three packages. Check what is already present:
+The scripts need Python 3.9–3.12 (3.12 verified) and three packages. Check what is already present:
 
 ```bash
 python3 --version
@@ -126,7 +126,7 @@ pip install httpx Pillow mineru-open-api
 ```
 
 **If it fails:** a `pip: command not found` means Python is not on PATH — install
-Python 3.9+ from python.org, then retry. A permissions error means the user site
+Python 3.9–3.12 from python.org, then retry. A permissions error means the user site
 is not writable; prefer `pip install --user ...`.
 
 > **Windows:** `python3` may be `python` on Windows. Run
@@ -159,11 +159,11 @@ Set it:
 export ZOTERO_API_KEY="your-24-char-key"
 ```
 
-### 4b. `ZOTERO_USER_ID` (required — the default is the author's ID)
+### 4b. `ZOTERO_USER_ID` (required — no built-in default)
 
 The numeric Zotero user ID appears at the top of the same keys page
-("Your userID for use in API calls"). **You must set this — the script defaults
-to the author's ID `21068406`, and using it would search the wrong library and
+("Your userID for use in API calls"). **You must set this — the scripts have no
+built-in default, and using the wrong ID would search the wrong library and
 emit notes with the wrong `zotero` frontmatter link.**
 
 ```bash
@@ -207,7 +207,7 @@ them permanent:
 
 ## Step 5: Configure the two filesystem paths
 
-The skill defaults to the author's local paths (`G:\硕士\...`). Every user must
+The skill ships with placeholder paths (see `resources/config/config.example.json`). Every user must
 point these at their own machine. Two ways to do it — **recommended: edit the
 JSON config**, or **alternative: set environment variables** (which take
 priority over the config file).
@@ -238,10 +238,10 @@ startup — no restart needed.
 Two environment variables override the config file (env > config.json >
 built-in default). The scripts also accept equivalent CLI flags.
 
-| Env var | What it is | CLI flag | Author default |
+| Env var | What it is | CLI flag | Example (placeholder) |
 | :-- | :-- | :-- | :-- |
-| `ZOTERO_STORAGE_DIR` | Where Zotero stores PDF attachments (`.../Zotero/storage`) | `--storage-dir` (pipeline_prep) | `G:\硕士\Zotero\storage` |
-| `OBSIDIAN_VAULT_DIR` | Obsidian vault root (note goes to `<vault>/文献/<paper>/`) | `--vault-dir` (pipeline_prep) | `G:\硕士\论文` |
+| `ZOTERO_STORAGE_DIR` | Where Zotero stores PDF attachments (`.../Zotero/storage`) | `--storage-dir` (pipeline_prep) | `C:\path\to\Zotero\storage` |
+| `OBSIDIAN_VAULT_DIR` | Obsidian vault root (note goes to `<vault>/文献/<paper>/`) | `--vault-dir` (pipeline_prep) | `C:\path\to\Obsidian\vault` |
 
 How to find your values:
 

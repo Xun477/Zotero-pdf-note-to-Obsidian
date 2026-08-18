@@ -1,7 +1,7 @@
 {
   "paths": {
-    "storage_dir": "G:\\硕士\\Zotero\\storage",
-    "vault_dir":   "G:\\硕士\\论文"
+    "storage_dir": "C:\\path\\to\\Zotero\\storage",
+    "vault_dir":   "C:\\path\\to\\Obsidian\\vault"
   },
   "behavior": {
     "subdir":   "文献",

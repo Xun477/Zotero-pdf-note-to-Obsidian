@@ -11,12 +11,12 @@ Usage:
 No staging/中转 folder: MinerU output is written directly into the Obsidian
 vault at <vault>/<subdir>/<pdf_name>/. Paths are configurable via env vars (or
 CLI flags / resources/config/*.json, env wins):
-  ZOTERO_STORAGE_DIR    Zotero attachment storage dir (default G:\硕士\Zotero\storage)
-  OBSIDIAN_VAULT_DIR    Obsidian vault root (default G:\硕士\论文)
+  ZOTERO_STORAGE_DIR    Zotero attachment storage dir (default C:\path\to\Zotero\storage)
+  OBSIDIAN_VAULT_DIR    Obsidian vault root (default C:\path\to\Obsidian\vault)
 
 Output JSON:
-  {"item_key": "ABC123", "title": "...", "pdf_path": "G:\\...",
-   "output_dir": "G:\\硕士\\论文\\文献\\paper", "md_file": "G:\\...\\paper\\paper.md",
+  {"item_key": "ABC123", "title": "...", "pdf_path": "C:\\...",
+   "output_dir": "C:\\path\\to\\Obsidian\\vault\\文献\\paper", "md_file": "C:\\...\\paper\\paper.md",
    "pdf_name": "paper"}
 
 """
@@ -32,6 +32,7 @@ if not os.path.exists(_refs_dir):
 else:
     sys.path.insert(0, _script_dir)
 from load_creds import get_api_key, get_user_id, load_config
+from redact import redact_secrets
 
 # ============================================================
 # Config: env var > resources/config/*.json > built-in fallback
@@ -57,8 +58,8 @@ parser.add_argument('--query', required=True, help='Paper title or keywords')
 parser.add_argument('--item-key', default=None, help='Skip search, use this Zotero item key directly')
 parser.add_argument('--ocr', action='store_true', default=False, help='Enable OCR mode for MinerU')
 parser.add_argument('--user-id', default=None, help='Zotero user ID')
-parser.add_argument('--storage-dir', default=_d('ZOTERO_STORAGE_DIR', 'paths.storage_dir', r'G:\硕士\Zotero\storage'), help='Zotero attachment storage dir (env: ZOTERO_STORAGE_DIR)')
-parser.add_argument('--vault-dir', default=_d('OBSIDIAN_VAULT_DIR', 'paths.vault_dir', r'G:\硕士\论文'), help='Obsidian vault root (env: OBSIDIAN_VAULT_DIR)')
+parser.add_argument('--storage-dir', default=_d('ZOTERO_STORAGE_DIR', 'paths.storage_dir', r'C:\path\to\Zotero\storage'), help='Zotero attachment storage dir (env: ZOTERO_STORAGE_DIR)')
+parser.add_argument('--vault-dir', default=_d('OBSIDIAN_VAULT_DIR', 'paths.vault_dir', r'C:\path\to\Obsidian\vault'), help='Obsidian vault root (env: OBSIDIAN_VAULT_DIR)')
 parser.add_argument('--subdir', default=_d(None, 'behavior.subdir', '文献'), help='Subfolder inside the vault')
 parser.add_argument('--model', default=_d(None, 'behavior.model', 'auto'), help='MinerU model: auto / vlm / pipeline / html (default: auto)')
 args = parser.parse_args()
@@ -75,7 +76,19 @@ def zotero_get(path, **params):
     url = f'https://api.zotero.org/users/{USER_ID}/{path}'
     headers = {'Authorization': f'Bearer {API_KEY}'}
     resp = httpx.get(url, headers=headers, params=params, timeout=30)
-    resp.raise_for_status()
+    try:
+        resp.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        # 不打印 URL / 原始响应正文：异常 str 含完整 URL（可能带 query），
+        # 响应正文不可控，统一脱敏后只给状态码与截断字段。
+        detail = redact_secrets(e.response.text[:300], (API_KEY,))
+        print(f'ERROR: Zotero API 返回 {e.response.status_code}: {detail}', file=sys.stderr)
+        print('检查 ZOTERO_API_KEY 是否有效：python scripts/check_env.py', file=sys.stderr)
+        sys.exit(1)
+    except httpx.TransportError as e:
+        print(f'ERROR: 无法连接 Zotero API（{type(e).__name__}，URL 已脱敏）', file=sys.stderr)
+        print('检查网络连接，或确认 api.zotero.org 可达后重试。', file=sys.stderr)
+        sys.exit(1)
     return resp.json()
 
 # ============================================================
@@ -95,11 +108,13 @@ else:
     results = zotero_get('items', q=args.query, limit=5)
     if not results:
         print('ERROR: No items found in Zotero.', file=sys.stderr)
+        print('修复：确认搜索词无误、该文献确实在 Zotero 库中；或改用 --item-key 直接指定条目 Key。', file=sys.stderr)
         sys.exit(1)
     # Skip saved snapshots / attachment items — they have no PDF child.
     results = [r for r in results if r.get('data', {}).get('itemType') != 'attachment']
     if not results:
         print('ERROR: Only attachment items found in Zotero.', file=sys.stderr)
+        print('修复：搜索结果只有附件条目；用 --item-key 指定父条目（论文）的 Key。', file=sys.stderr)
         sys.exit(1)
     # Pick the first result
     first = results[0]
@@ -125,6 +140,7 @@ for child in children:
 
 if not pdf_child:
     print('ERROR: No PDF attachment found.', file=sys.stderr)
+    print('修复：在 Zotero 客户端给该条目添加 PDF 附件后重试（或用 --item-key 指定含 PDF 的条目）。', file=sys.stderr)
     sys.exit(1)
 
 child_key = pdf_child.get('key', '')
@@ -190,7 +206,8 @@ result = subprocess.run(cmd, env=env, capture_output=True, text=True, encoding='
 
 if result.returncode != 0:
     print(f'ERROR: MinerU failed (exit {result.returncode})', file=sys.stderr)
-    print(result.stderr[:500], file=sys.stderr)
+    print(redact_secrets(result.stderr[:500], (mineru_token,)), file=sys.stderr)
+    print('修复：检查 MINERU_TOKEN 是否有效（python scripts/check_env.py），或重试一次（MinerU 偶发超时）。', file=sys.stderr)
     sys.exit(1)
 
 md_file = os.path.join(output_dir, f'{pdf_name}.md')

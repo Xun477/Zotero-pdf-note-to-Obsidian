@@ -9,7 +9,7 @@ Args:
   --output-dir   Output directory (also contains images/ subdirectory)
   --item-key     Zotero parent item key
   --compress     If set, use PIL to resize images (max 400px, JPEG quality 60)
-  --user-id      Zotero user ID (default: from env ZOTERO_USER_ID or 21068406)
+  --user-id      Zotero user ID (default: from env ZOTERO_USER_ID)
 """
 import re, os, base64, json, sys, argparse, time
 

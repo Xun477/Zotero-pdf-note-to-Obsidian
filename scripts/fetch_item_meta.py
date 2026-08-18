@@ -5,6 +5,7 @@ import os, sys, json, argparse, httpx
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _script_dir)
 from load_creds import get_api_key, get_user_id
+from redact import redact_secrets
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--item-key', required=True)
@@ -16,7 +17,18 @@ USER_ID = get_user_id()
 url = f'https://api.zotero.org/users/{USER_ID}/items/{args.item_key}'
 headers = {'Authorization': f'Bearer {API_KEY}'}
 resp = httpx.get(url, headers=headers, timeout=30)
-resp.raise_for_status()
+try:
+    resp.raise_for_status()
+except httpx.HTTPStatusError as e:
+    # 异常 str 含完整 URL，不打印；响应正文脱敏后只给状态码与截断字段。
+    detail = redact_secrets(e.response.text[:300], (API_KEY,))
+    print(f'ERROR: Zotero API 返回 {e.response.status_code}: {detail}', file=sys.stderr)
+    print('检查 ZOTERO_API_KEY 是否有效：python scripts/check_env.py', file=sys.stderr)
+    sys.exit(1)
+except httpx.TransportError as e:
+    print(f'ERROR: 无法连接 Zotero API（{type(e).__name__}，URL 已脱敏）', file=sys.stderr)
+    print('检查网络连接，或确认 api.zotero.org 可达后重试。', file=sys.stderr)
+    sys.exit(1)
 data = resp.json().get('data', {})
 
 out = {

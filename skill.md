@@ -5,116 +5,74 @@ description: Zotero PDF to structured reading notes. Use when the user asks to �
 
 # Zotero PDF Note to Obsidian
 
-把 Zotero 中的论文 PDF 一键转为结构化阅读笔记。MinerU 高精度提取 MD（自带图片引用）→ AI 直接在 MD 上改写为结构化笔记 → 导出 Markdown + 图片到 Obsidian 论文仓库（`$OBSIDIAN_VAULT_DIR`，默认 `G:\硕士\论文`）。用户只需告诉论文标题。
+把 Zotero 中的论文 PDF 一键转为结构化阅读笔记。MinerU 高精度提取 MD（自带图片引用）→ AI 在 MD 上改写为结构化笔记 → 导出 Markdown + 图片到 Obsidian 论文仓库（`$OBSIDIAN_VAULT_DIR`，默认 `C:\path\to\Obsidian\vault`）。用户只需告诉论文标题。
 
-凭据通过环境变量管理：`ZOTERO_API_KEY`、`ZOTERO_USER_ID`、`MINERU_TOKEN`。凭据备份文件 `~\.zotero_credentials`（Windows 为 `%USERPROFILE%\.zotero_credentials`）。`ZOTERO_API_KEY` 用于搜索条目/定位 PDF（只读）；笔记写入 Obsidian 仓库本地文件，无需 Zotero 写入权限。Python 脚本一律写成 `.py` 文件再执行，避免 `python -c` 内联。
+凭据通过环境变量管理：`ZOTERO_API_KEY`、`ZOTERO_USER_ID`、`MINERU_TOKEN`，备份文件 `~\.zotero_credentials`。`ZOTERO_API_KEY` 只读用于搜索/定位 PDF；笔记写入 Obsidian 本地文件，无需 Zotero 写入权限。Python 脚本一律写成 `.py` 文件再执行，避免 `python -c` 内联。
 
 ## 依赖检查
 
-首次使用或怀疑环境有问题时，先确认：
+首次使用或怀疑环境有问题时：
 
 ```powershell
-pip show httpx Pillow
-[System.Environment]::GetEnvironmentVariable('ZOTERO_API_KEY', 'User')
-[System.Environment]::GetEnvironmentVariable('MINERU_TOKEN', 'User')
+python "$env:USERPROFILE\.claude\skills\Zotero pdf note to Obsidian\scripts\check_env.py"
 ```
 
-三项都应该有有效输出。`httpx` 和 `Pillow` 缺失时 `pip install httpx Pillow`。
-
-## 重试策略
-
-### 安全分类器瞬时故障
-
-Write / PowerShell 操作可能返回 `deepseek-v4-pro[1M] is temporarily unavailable, so auto mode cannot determine the safety of ...`——这是分类器瞬时过载，非流程问题。**不要放弃当前步骤**，等待 3 秒后重试该操作。每次重试前先跑一个轻量心跳确认分类器恢复：
-
-```powershell
-Write-Output "heartbeat"
-```
-
-若心跳返回 `heartbeat` 则分类器已恢复，继续之前被阻断的操作。连续 3 次失败再放弃。
-
-### MinerU 提取超时
-
-`pipeline_prep.py` 内置 120s 超时。若超时，检查输出目录是否已生成 `.md` 文件——有时 API 已完成但客户端超时。
-
-### Obsidian 导出
-
-`export_to_obsidian.py` 是本地文件写入（复制笔记 + 图片到仓库），无网络 POST。同一篇论文重复导出会覆盖 `$OBSIDIAN_VAULT_DIR\文献\{pdf名}\` 下的旧笔记。
+脚本逐项检查 Python 包与凭据，输出 `[OK]`/`[FAIL]`。
 
 ## 流程
 
-### 步骤 1 — 前置提问（合并为一次 AskUserQuestion）
-
-用 **一次** `AskUserQuestion` 同时拿到两个选择，之后不再中断：
+### 步骤 1 — 前置提问（一次 AskUserQuestion）
 
 | 问题 | 选项 |
 |------|------|
 | 这篇 PDF 是什么类型？ | **论文（非综述）** / **其他**（综述/应用笔记/技术报告/专利） |
 | 写入 Obsidian 时是否压缩图片（>800px 压缩）？ | **压缩图片（推荐）** / 不压缩 |
 
-**类型选择影响后续模板：**
-- 论文（非综述）→ 改写时 Read [resources/template/paper.md](resources/template/paper.md)，7 板块 IMRaD
-- 其他 → 改写时 Read [resources/template/general.md](resources/template/general.md)，自由逐步总结
-
-**压缩选择**在步骤 4 执行脚本时生效（`--compress` 参数）。
+- 论文 → Read [resources/template/paper.md](resources/template/paper.md)，IMRaD 骨架
+- 其他 → Read [resources/template/general.md](resources/template/general.md)，自由总结
+- 压缩选择在步骤 4 用 `--compress` 生效
 
 ### 步骤 2 — pipeline_prep.py（搜索 + PDF + 目录 + MinerU）
-
-一条命令完成原步骤 2-5 的全部机械操作：
 
 ```powershell
 python "$env:USERPROFILE\.claude\skills\Zotero pdf note to Obsidian\scripts\pipeline_prep.py" --query "论文标题关键词"
 ```
 
-> 脚本路径随 skill 安装位置而定，此处用 `$env:USERPROFILE\.claude\skills\...` 作通用占位。**无中转目录**：MinerU 提取直接输出到 Obsidian 仓库 `$OBSIDIAN_VAULT_DIR\文献\{pdf名}\`（无 `_01/_02` 序号，固定目录，重跑覆盖）。仓库根目录默认取环境变量 `OBSIDIAN_VAULT_DIR`（未设置时依次回退 `resources/config/config.json` 的 `paths.vault_dir` → `G:\硕士\论文`），子目录 `文献` 可改 config `behavior.subdir` 或 `--subdir`。Zotero 附件目录可用 `--storage-dir`、`ZOTERO_STORAGE_DIR` 或配置文件的 `paths.storage_dir` 覆盖。
-
-输出 JSON（agent 解析后获取后续步骤所需的所有路径和 key）：
+输出 JSON（agent 解析后获取后续步骤所需路径与 key）：
 
 ```json
-{"item_key": "ABC123", "title": "...", "pdf_path": "G:\\硕士\\Zotero\\storage\\XXXX\\paper.pdf",
- "output_dir": "G:\\硕士\\论文\\文献\\paper", "md_file": "G:\\硕士\\论文\\文献\\paper\\paper.md",
+{"item_key": "ABC123", "title": "...", "pdf_path": "C:\\path\\to\\Zotero\\storage\\XXXX\\paper.pdf",
+ "output_dir": "C:\\path\\to\\Obsidian\\vault\\文献\\paper", "md_file": "C:\\path\\to\\Obsidian\\vault\\文献\\paper\\paper.md",
  "pdf_name": "paper"}
 ```
 
-- 如果搜索结果不对，用 `--item-key` 直接指定 Zotero 条目 Key 跳过搜索
-- 扫描版 PDF 加 `--ocr`
-- 图片多或截图不全时，可加 `--model vlm` 提升 MinerU 提取完整度（更慢更贵，默认 `auto`）
+- 搜索结果不对 → `--item-key` 直接指定条目 Key 跳过搜索
+- 扫描版 PDF → `--ocr`；图片多/截图不全 → `--model vlm`（更慢更贵，默认 `auto`）
+- 输出路径取 `$OBSIDIAN_VAULT_DIR` → `resources/config/config.json` → 默认值，详见 README
 
 ### 步骤 3 — 读取 MD 并改写为结构化笔记
 
-1. 读取步骤 2 输出的 `md_file`——**读到 `## References` / `# References` / `参考文献` 标题行立即停止**，后面的引用列表不读。
-2. 在读取过程中，**枚举并记录 MD 中出现的所有 `![](images/xxx.png)` 图片引用**（正文中 References 之前出现的全部图片），形成一张图片清单。
-3. 根据步骤 1 的类型选择，Read 对应模板：
-   - 论文 → [resources/template/paper.md](resources/template/paper.md)
-   - 其他 → [resources/template/general.md](resources/template/general.md)
-4. 按模板中的改写规则和格式改写 MD，保存为 `{output_dir}\{pdf名}_note.md`。（规则已定义在模板文件中，无需在此重复。）
-5. **图片完整性核对（必做）：** 改写完成后，对照第 2 步的图片清单逐条确认——原文每一张图片都必须出现在新笔记中（对应板块内，或文末 `## 📷 全部图片 / 图片附录`）。**笔记里的图片数不得少于原文图片数。** 有缺失就补上，不得省略任何一张。
-6. 图片放不下的，在 `## 🏁 Conclusion` 之后、尾部标注之前加 `## 📷 全部图片 / 图片附录` 一节列出剩余图片。
+1. 读 `md_file`，**读到 `## References` / `# References` / `参考文献` 标题行即停**，引用列表不读。
+2. 枚举 MD 中 References 之前的所有 `![](images/xxx.png)` 图片引用，形成图片清单。
+3. Read 对应模板 + [references/rewrite-rules.md](references/rewrite-rules.md)，按两者改写，保存为 `{output_dir}\{pdf名}_note.md`。
+4. **图片完整性核对（必做）：** 对照图片清单逐条确认——原文每一张图都必须出现在新笔记（对应板块内，或文末 `## 全部图片 / 图片附录`）。**图片数不得少于原文。** 缺失即补上，不得省略任何一张。
+5. 放不下的图，在 `## Conclusion` 之后、尾部标注之前加 `## 全部图片 / 图片附录` 一节列出。
 
-### 步骤 4 — export_to_obsidian.py（导出 Markdown + 图片到 Obsidian）
+### 步骤 4 — export_to_obsidian.py（导出 Markdown + 图片）
 
 ```powershell
 python "$env:USERPROFILE\.claude\skills\Zotero pdf note to Obsidian\scripts\export_to_obsidian.py" --md-file "{output_dir}\{pdf名}_note.md" --pdf-name "{pdf名}" --item-key "{item_key}" --compress
 ```
 
-步骤 1 选不压缩时去掉 `--compress`。`--pdf-name` 取步骤 2 输出 JSON 里的 `pdf_name`。笔记 + `images/` 已在 Obsidian 仓库 `文献\{pdf名}\` 内，脚本就地完成：自动加 YAML frontmatter、把未被正文引用的图片追加到文末 `## 📷 全部图片 / 图片附录`（兜底保证图片一张不丢）、写入最终 `{pdf名}.md`，成功后**自动删除中间产物 `{pdf名}_note.md`**——目录最终只留笔记 + `images/`。输出 `Vault Note: <路径>` 和 `Result: OK` 即为成功。图片引用保持 `![](images/xxx.png)` 相对路径，Obsidian 内正常渲染。
+步骤 1 选不压缩时去掉 `--compress`。脚本就地生成最终笔记（YAML frontmatter + 图片附录兜底），成功后**自动删除中间产物 `{pdf名}_note.md`**。输出 `Vault Note: <路径>` + `Result: OK` 即成功。
 
-> 脚本直接从 `scripts/` 运行，`load_creds.py` 在同目录。
+> 脚本从 `scripts/` 直接运行，`load_creds.py` 在同目录。
 
 ### 步骤 5 — 告知查看位置
 
-告诉用户在 Obsidian 打开论文仓库查看笔记（`$OBSIDIAN_VAULT_DIR\文献\{pdf名}\`）。Obsidian 会自动索引新文件，必要时按 Ctrl+R 刷新。如需笔记也在 Zotero 里，可在 Zotero 中 `右键条目 → 添加笔记` 手动粘贴。
+告诉用户到 Obsidian 论文仓库查看（`$OBSIDIAN_VAULT_DIR\文献\{pdf名}\`），必要时 Ctrl+R 刷新。如需笔记也在 Zotero，可 `右键条目 → 添加笔记` 手动粘贴。
 
-## MinerU 注意事项
+## 故障处理
 
-- 提取耗时 30-60 秒，不要中途取消。
-- 扫描版 PDF 必须加 `--ocr`。判断方法：如果提取出的 MD 内容极少或全是乱码，说明是扫描版。
-- 输出目录结构：`{pdf名}.md` + `images/` 子目录（图片以 hash 命名，格式为 jpg/png）。
-
-## Obsidian 导出注意事项
-
-- `export_to_obsidian.py` 已处理 frontmatter 生成、图片复制、路径校验——agent 无需关心。
-- `--compress` 会把超过 800px 的图压缩并保留原格式；不压缩则原样复制。
-- **图片兜底：** 即使改写时遗漏了某些图片引用，导出脚本也会把 `images/` 中未被正文引用的图片自动追加到笔记末尾的 `## 📷 全部图片 / 图片附录`，**保证图片一张不丢**；重复导出不会生成重复附录。脚本会打印 `Images on disk: N | Images referenced in note: N` 供核对。
-- 步骤 4 输出 `Vault Note` + `Result: OK` 即成功。
-
+- 若遇 `temporarily unavailable`（安全分类器瞬时过载）→ **心跳重试**：`Write-Output "heartbeat"` 确认恢复后重试被阻断操作，最多 3 次，不要放弃当前步骤。
+- 其他故障 / 超时 / MinerU 与导出细节 → [references/troubleshooting.md](references/troubleshooting.md)。
