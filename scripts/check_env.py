@@ -16,6 +16,14 @@ import importlib.util
 import os
 import sys
 
+# Windows 控制台/管道默认用本地代码页（如 cp936/GBK），中文输出可能报
+# UnicodeEncodeError 或乱码；强制 stdout/stderr 走 UTF-8，不可编码字符以替代符输出。
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding='utf-8', errors='replace')
+    except (AttributeError, ValueError, OSError):
+        pass
+
 
 def _has_pkg(name):
     return importlib.util.find_spec(name) is not None

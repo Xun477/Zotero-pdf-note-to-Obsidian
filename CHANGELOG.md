@@ -4,6 +4,14 @@
 
 ---
 
+### v1.4.2 (2026-08-18)
+
+**修复：Windows 中文控制台编码错误（UnicodeEncodeError）**
+
+- **问题** -- 中文 Windows 默认代码页为 GBK（cp936），脚本输出被管道捕获时（AI CLI/Agent 均如此调用）Python 按本地代码页编码 stdout，中文输出报 `UnicodeEncodeError` 或乱码，用户需手动以 `python -X utf8` / `PYTHONUTF8=1` 运行才能通过体检
+- **修复** -- 全部 6 个脚本（`check_env.py` / `pipeline_prep.py` / `export_to_obsidian.py` / `fetch_item_meta.py` / `md_to_html_and_write.py` / `load_creds.py`）在 import 后统一加入 stdout/stderr 编码保护：`reconfigure(encoding='utf-8', errors='replace')`（带异常兜底）
+- **效果** -- 任何用户在任何 Windows 代码页下直接 `python check_env.py`（或任何脚本）均可正常输出中文，无需设置 `PYTHONUTF8`；已验证管道输出中文正常、退出码 0
+
 ### v1.4.1 (2026-08-18)
 
 **变更：开源脱敏（去除个人路径与作者默认 ID）**

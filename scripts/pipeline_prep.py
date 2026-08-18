@@ -23,6 +23,14 @@ Output JSON:
 
 import os, sys, json, argparse, subprocess, shutil
 
+# Windows 控制台/管道默认用本地代码页（如 cp936/GBK），中文输出可能报
+# UnicodeEncodeError 或乱码；强制 stdout/stderr 走 UTF-8，不可编码字符以替代符输出。
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding='utf-8', errors='replace')
+    except (AttributeError, ValueError, OSError):
+        pass
+
 # Ensure we can import load_creds from the same directory
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 _refs_dir = os.path.join(_script_dir, 'load_creds.py')

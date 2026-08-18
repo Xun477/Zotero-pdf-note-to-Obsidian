@@ -17,6 +17,14 @@ import os
 import sys
 import json
 
+# Windows 控制台/管道默认用本地代码页（如 cp936/GBK），中文输出可能报
+# UnicodeEncodeError 或乱码；强制 stdout/stderr 走 UTF-8，不可编码字符以替代符输出。
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding='utf-8', errors='replace')
+    except (AttributeError, ValueError, OSError):
+        pass
+
 
 def get_api_key():
     """Return ZOTERO_API_KEY from first available source. Exit if not found."""
