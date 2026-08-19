@@ -4,6 +4,13 @@
 
 ---
 
+### v1.4.3 (2026-08-19)
+
+**变更：新增 README 封面图**
+
+- 新增 `assets/cover.jpg`（1376×783）作为 README 封面图，展示于标题下方
+- README 引用图片使用相对路径 `assets/cover.jpg`，随仓库分发
+
 ### v1.4.2 (2026-08-18)
 
 **修复：Windows 中文控制台编码错误（UnicodeEncodeError）**

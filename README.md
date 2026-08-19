@@ -1,5 +1,7 @@
 # Zotero PDF Note to Obsidian
 
+![Zotero PDF Note to Obsidian](assets/cover.jpg)
+
 Zotero 论文 PDF 一键转结构化阅读笔记——MinerU 高精度提取 → AI 改写为结构化笔记 → 导出 Markdown + 图片到 Obsidian 论文仓库。
 
 ## 安装
