@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Orchestrator for steps 2-5 of the Zotero PDF to Note pipeline.
+r"""Orchestrator for steps 2-5 of the Zotero PDF to Note pipeline.
 
 Searches Zotero, locates the PDF, creates an output directory, and runs
 MinerU extraction — all in one call. Outputs JSON for the agent to consume.
@@ -23,40 +23,16 @@ Output JSON:
 
 import os, sys, json, argparse, subprocess, shutil
 
-# Windows 控制台/管道默认用本地代码页（如 cp936/GBK），中文输出可能报
-# UnicodeEncodeError 或乱码；强制 stdout/stderr 走 UTF-8，不可编码字符以替代符输出。
-for _stream in (sys.stdout, sys.stderr):
-    try:
-        _stream.reconfigure(encoding='utf-8', errors='replace')
-    except (AttributeError, ValueError, OSError):
-        pass
-
-# Ensure we can import load_creds from the same directory
-_script_dir = os.path.dirname(os.path.abspath(__file__))
-_refs_dir = os.path.join(_script_dir, 'load_creds.py')
-if not os.path.exists(_refs_dir):
-    _refs_dir = os.path.expandvars(r'${USERPROFILE}\.claude\skills\Zotero pdf note to Obsidian\scripts')
-    sys.path.insert(0, _refs_dir)
-else:
-    sys.path.insert(0, _script_dir)
-from load_creds import get_api_key, get_user_id, load_config
+# Ensure we can import load_creds from the same directory (its module-level
+# reconfigure_utf8() also fixes stdout/stderr encoding for this script).
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from load_creds import get_api_key, get_user_id, get_mineru_token, load_config, get_config_value
 from redact import redact_secrets
 
 # ============================================================
 # Config: env var > resources/config/*.json > built-in fallback
 # ============================================================
 _cfg = load_config()
-
-def _d(env_name, cfg_path, fallback):
-    v = os.environ.get(env_name) if env_name else None
-    if v:
-        return v
-    cur = _cfg
-    for k in (cfg_path.split('.') if cfg_path else []):
-        if not isinstance(cur, dict):
-            return fallback
-        cur = cur.get(k)
-    return cur if cur is not None else fallback
 
 # ============================================================
 # Parse args
@@ -66,10 +42,10 @@ parser.add_argument('--query', required=True, help='Paper title or keywords')
 parser.add_argument('--item-key', default=None, help='Skip search, use this Zotero item key directly')
 parser.add_argument('--ocr', action='store_true', default=False, help='Enable OCR mode for MinerU')
 parser.add_argument('--user-id', default=None, help='Zotero user ID')
-parser.add_argument('--storage-dir', default=_d('ZOTERO_STORAGE_DIR', 'paths.storage_dir', r'C:\path\to\Zotero\storage'), help='Zotero attachment storage dir (env: ZOTERO_STORAGE_DIR)')
-parser.add_argument('--vault-dir', default=_d('OBSIDIAN_VAULT_DIR', 'paths.vault_dir', r'C:\path\to\Obsidian\vault'), help='Obsidian vault root (env: OBSIDIAN_VAULT_DIR)')
-parser.add_argument('--subdir', default=_d(None, 'behavior.subdir', '文献'), help='Subfolder inside the vault')
-parser.add_argument('--model', default=_d(None, 'behavior.model', 'auto'), help='MinerU model: auto / vlm / pipeline / html (default: auto)')
+parser.add_argument('--storage-dir', default=get_config_value(_cfg, 'ZOTERO_STORAGE_DIR', 'paths.storage_dir', r'C:\path\to\Zotero\storage'), help='Zotero attachment storage dir (env: ZOTERO_STORAGE_DIR)')
+parser.add_argument('--vault-dir', default=get_config_value(_cfg, 'OBSIDIAN_VAULT_DIR', 'paths.vault_dir', r'C:\path\to\Obsidian\vault'), help='Obsidian vault root (env: OBSIDIAN_VAULT_DIR)')
+parser.add_argument('--subdir', default=get_config_value(_cfg, None, 'behavior.subdir', '文献'), help='Subfolder inside the vault')
+parser.add_argument('--model', default=get_config_value(_cfg, None, 'behavior.model', 'auto'), help='MinerU model: auto / vlm / pipeline / html (default: auto)')
 args = parser.parse_args()
 
 API_KEY = get_api_key()
@@ -182,16 +158,7 @@ print(f'[pipeline] Output dir: {output_dir}', file=sys.stderr)
 # ============================================================
 # Phase 4: MinerU extraction
 # ============================================================
-mineru_token = os.environ.get('MINERU_TOKEN', '')
-if not mineru_token:
-    # Try to load from user env var
-    try:
-        import winreg
-        k = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Environment', 0, winreg.KEY_READ)
-        mineru_token, _ = winreg.QueryValueEx(k, 'MINERU_TOKEN')
-        winreg.CloseKey(k)
-    except Exception:
-        pass
+mineru_token = get_mineru_token()
 
 env = os.environ.copy()
 if mineru_token:
@@ -209,7 +176,7 @@ if _exe:
     cmd[0] = _exe
 
 print(f'[pipeline] Running MinerU (ocr={args.ocr}, model={args.model})...', file=sys.stderr)
-timeout = _d(None, 'behavior.timeout', 120)
+timeout = get_config_value(_cfg, None, 'behavior.timeout', 120)
 result = subprocess.run(cmd, env=env, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=timeout, shell=False)
 
 if result.returncode != 0:

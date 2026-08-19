@@ -2,16 +2,8 @@
 """Fetch full Zotero item metadata for a given item key (print as JSON)."""
 import os, sys, json, argparse, httpx
 
-# Windows 控制台/管道默认用本地代码页（如 cp936/GBK），中文输出可能报
-# UnicodeEncodeError 或乱码；强制 stdout/stderr 走 UTF-8，不可编码字符以替代符输出。
-for _stream in (sys.stdout, sys.stderr):
-    try:
-        _stream.reconfigure(encoding='utf-8', errors='replace')
-    except (AttributeError, ValueError, OSError):
-        pass
-
-_script_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, _script_dir)
+# 同目录导入 load_creds（其模块级 reconfigure_utf8() 同时修正 stdout/stderr 编码）
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from load_creds import get_api_key, get_user_id
 from redact import redact_secrets
 

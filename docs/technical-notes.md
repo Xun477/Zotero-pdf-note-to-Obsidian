@@ -4,7 +4,7 @@
 
 ## 为什么把笔记放入 Obsidian 而不是写回 Zotero？
 
-早期版本把笔记写回 Zotero（`scripts/md_to_html_and_write.py`，现已停用），但**带图片的笔记**在 Zotero 里代价很高：
+早期版本把笔记写回 Zotero（现已停用），但**带图片的笔记**在 Zotero 里代价很高：
 
 - **膨胀 `Zotero\storage`** —— Zotero 会把笔记中的每张图片转成独立的附件文件，存到 `storage\<条目key>\` 下。一篇论文几十张图，就在 storage 里多出几十个文件；笔记越多，storage 目录越臃肿，还随每次同步全量上传到云端。
 - **附件条目污染库结构** —— 每张图片都是一个附件，条目下挂满图片附件，分类、检索、迁移都变麻烦。

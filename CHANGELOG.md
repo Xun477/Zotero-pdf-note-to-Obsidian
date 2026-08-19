@@ -4,6 +4,17 @@
 
 ---
 
+### v1.4.4 (2026-08-19)
+
+**优化：skill 结构瘦身（修 bug + 省 token + 仓库清理）**
+
+- **修复：凭据文件回退失效** —— `load_creds.py` 只认 `API_KEY=` 旧格式，README 规定的 `ZOTERO_API_KEY=` 格式永远读不到（check_env 能读、pipeline 读不到）；现统一为通用 `key=value` 解析，`get_user_id` / `MINERU_TOKEN` 补齐文件+注册表兜底，与 check_env 行为一致
+- **修复：导出双重 frontmatter** —— `export_to_obsidian.py` 重新生成 frontmatter 但 AI 写入的 rich frontmatter 残留正文，最终笔记出现两个 `---` 块、theme/method 等字段在 Obsidian 属性中丢失；现以 AI 原 frontmatter 为基底仅补缺 `zotero` / `created`；作者/期刊正则截断到 `|`，兼容 general 模板"来源/年份"
+- **修复：SyntaxWarning** —— 3 个脚本 docstring 非法转义（`\<` / `\E` / `\p`）改为 raw string
+- **优化：模板去重** —— paper.md 240→175 行、general.md 169→110 行（删重复"输出格式"示例，板块与规则零删减）；rewrite-rules.md 45→10 行（只留优先级声明 + 强制项清单）
+- **优化：脚本公共代码合并** —— UTF-8 编码保护 / 配置解析 `_d()` / 导入 hack 抽入 `load_creds.py`（`reconfigure_utf8()` / `get_config_value()`），消除三处重复与漂移
+- **清理** —— 删除废弃 `md_to_html_and_write.py`（v1.0 前 Zotero POST 版本，无引用）；清理 2 个残留 git worktree；`.gitignore` 增加 `.claude/`
+
 ### v1.4.3 (2026-08-19)
 
 **变更：新增 README 封面图**

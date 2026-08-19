@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Finalize the AI-rewritten reading note directly inside the Obsidian vault.
+r"""Finalize the AI-rewritten reading note directly inside the Obsidian vault.
 
 There is no staging folder: pipeline_prep.py already wrote the MinerU output
 (<pdf_name>.md + images/) into <vault>/文献/<pdf_name>/, and the AI rewrite
 step produced <pdf_name>_note.md in the same folder. This script reads that
-_note.md, adds YAML frontmatter, appends any unreferenced images to the
-appendix (hard guarantee nothing is dropped), compresses optionally, writes
-the final <pdf_name>.md, and removes the intermediate _note.md.
+_note.md, keeps its AI-written YAML frontmatter (only adding zotero/created
+if missing), appends any unreferenced images to the appendix (hard guarantee
+nothing is dropped), compresses optionally, writes the final <pdf_name>.md,
+and removes the intermediate _note.md.
 
 Image references stay as relative "images/xxx.png" paths, which resolve
 naturally inside Obsidian because images/ lives next to the note.
@@ -26,41 +27,17 @@ Args:
   --user-id      Zotero user ID (default from load_creds / env ZOTERO_USER_ID)
 """
 
-import os, re, sys, shutil, argparse, datetime
+import os, re, sys, argparse, datetime
 
-# Windows 控制台/管道默认用本地代码页（如 cp936/GBK），中文输出可能报
-# UnicodeEncodeError 或乱码；强制 stdout/stderr 走 UTF-8，不可编码字符以替代符输出。
-for _stream in (sys.stdout, sys.stderr):
-    try:
-        _stream.reconfigure(encoding='utf-8', errors='replace')
-    except (AttributeError, ValueError, OSError):
-        pass
-
-# Ensure we can import load_creds from the same directory
-_script_dir = os.path.dirname(os.path.abspath(__file__))
-_refs_dir = os.path.join(_script_dir, 'load_creds.py')
-if not os.path.exists(_refs_dir):
-    _refs_dir = os.path.expandvars(r'${USERPROFILE}\.claude\skills\Zotero pdf note to Obsidian\scripts')
-    sys.path.insert(0, _refs_dir)
-else:
-    sys.path.insert(0, _script_dir)
+# Ensure we can import load_creds from the same directory (its module-level
+# reconfigure_utf8() also fixes stdout/stderr encoding for this script).
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from load_creds import get_user_id, load_config
 
 # ============================================================
 # Config: env var > resources/config/*.json > built-in fallback
 # ============================================================
 _cfg = load_config()
-
-def _d(env_name, cfg_path, fallback):
-    v = os.environ.get(env_name) if env_name else None
-    if v:
-        return v
-    cur = _cfg
-    for k in (cfg_path.split('.') if cfg_path else []):
-        if not isinstance(cur, dict):
-            return fallback
-        cur = cur.get(k)
-    return cur if cur is not None else fallback
 
 # ============================================================
 # Parse args
@@ -95,19 +72,53 @@ def yaml_str(value):
         return ''
     return '"' + value.replace('\\', '\\\\').replace('"', '\\"') + '"'
 
+FM_RE = re.compile(r'^---\s*\n(.*?)\n---\s*\n', re.DOTALL)
+
+def split_frontmatter(note):
+    """把笔记开头已有的 YAML frontmatter 块切出，返回 (块内容或 None, 剩余正文)。"""
+    m = FM_RE.match(note)
+    if not m:
+        return None, note
+    return m.group(1), note[m.end():]
+
+def _fm_keys(block):
+    """简单提取 frontmatter 块中已有的键名（跳过列表项与注释行）。"""
+    keys = set()
+    for line in block.splitlines():
+        line = line.strip()
+        if line and not line.startswith(('-', '#')) and ':' in line:
+            k = line.split(':', 1)[0].strip()
+            if k:
+                keys.add(k)
+    return keys
+
+def merge_frontmatter(fm_block, note_body, pdf_name):
+    """以 AI 写入的 frontmatter 为基底，仅补缺 zotero / created 键；
+    无已有 frontmatter 时回退到从正文正则推导（历史行为）。"""
+    if fm_block is not None:
+        keys = _fm_keys(fm_block)
+        additions = []
+        if args.item_key and 'zotero' not in keys:
+            additions.append(f'zotero: "https://www.zotero.org/users/{USER_ID}/items/{args.item_key}"')
+        if 'created' not in keys:
+            additions.append(f'created: "{datetime.date.today().isoformat()}"')
+        block = fm_block.rstrip('\n') + ('\n' + '\n'.join(additions) if additions else '')
+        return '---\n' + block + '\n---'
+    return build_frontmatter(note_body, pdf_name)
+
 def build_frontmatter(note, pdf_name):
-    """Parse metadata from the note header and build a YAML frontmatter block."""
+    """无已有 frontmatter 时的回退：从正文首标题与信息行正则推导。"""
     fm = []
     # title: first top-level heading
     m = re.search(r'^#\s+(.+)$', note, re.MULTILINE)
     title = m.group(1).strip() if m else pdf_name
     fm.append(('title', title))
-    # authors
-    m = re.search(r'\*\*作者[:：]\*\*\s*(.+)', note)
+    # authors（信息行格式 `**作者:** X | **期刊/年份:** ...`，截到 | 为止）
+    m = re.search(r'\*\*作者[:：]\*\*\s*([^|]+)', note)
     if m:
         fm.append(('authors', m.group(1).strip()))
-    # journal / year
-    m = re.search(r'\*\*期刊/年份[:：]\*\*\s*(.+)', note)
+    # journal / year（paper 模板"期刊/年份"、general 模板"来源/年份"都兼容）
+    m = re.search(r'\*\*(?:期刊|来源)/年份[:：]\*\*\s*([^|]+)', note)
     if m:
         line = m.group(1).strip()
         ym = re.search(r'\b(?:19|20)\d{2}\b', line)
@@ -231,7 +242,9 @@ print(f'Images processed: {processed} (compress={args.compress})')
 # ============================================================
 # Append unreferenced images (hard guarantee: nothing dropped)
 # ============================================================
-body, tail = split_tail(note)
+# 先切掉笔记开头已有的 frontmatter 块（保留给合并），再切尾部标注
+fm_block, note_body = split_frontmatter(note)
+body, tail = split_tail(note_body)
 body, tail, appended = ensure_appendix(body, tail, images_dir)
 note_final = (body.rstrip('\n') + '\n\n' + tail + '\n') if tail else body.rstrip('\n') + '\n'
 if appended:
@@ -240,11 +253,11 @@ else:
     print('[appendix] 所有图片均已在正文中被引用，无需补齐')
 
 # ============================================================
-# Write note with frontmatter (frontmatter parsed from ORIGINAL note)
+# Write note with frontmatter (AI 原 frontmatter 为基底，仅补缺键)
 # ============================================================
-frontmatter = build_frontmatter(note, pdf_name)
+frontmatter = merge_frontmatter(fm_block, note_body, pdf_name)
 with open(vault_note_path, 'w', encoding='utf-8') as f:
-    f.write(frontmatter + '\n' + note_final)
+    f.write(frontmatter + '\n\n' + note_final)
 print(f'Vault note: {vault_note_path}')
 
 # ============================================================
@@ -254,7 +267,7 @@ problems = []
 if not os.path.isfile(vault_note_path) or os.path.getsize(vault_note_path) == 0:
     problems.append('note file missing or empty')
 
-headings = re.findall(r'^#{1,4}\s+', note, re.MULTILINE)
+headings = re.findall(r'^#{1,4}\s+', note_body, re.MULTILINE)
 if len(headings) < 3:
     problems.append(f'note has fewer than 3 headings ({len(headings)})')
 

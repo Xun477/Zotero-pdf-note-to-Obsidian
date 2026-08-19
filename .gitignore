@@ -12,3 +12,6 @@ resources/config/config.json
 # OS
 Thumbs.db
 .DS_Store
+
+# Claude Code generated artifacts (worktrees, settings, etc.)
+.claude/

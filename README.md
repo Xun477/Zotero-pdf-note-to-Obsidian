@@ -216,8 +216,7 @@ skills/Zotero pdf note to Obsidian/
 │   ├── pipeline_prep.py                  # 搜索 + PDF 定位 + MinerU 提取
 │   ├── export_to_obsidian.py             # 笔记 + 图片导入 Obsidian 仓库
 │   ├── check_env.py                      # 环境/依赖检查（[OK]/[WARN]/[FAIL]）
-│   ├── fetch_item_meta.py                # 取条目元数据（辅助）
-│   └── md_to_html_and_write.py           # （旧）Zotero POST 版本，保留未用
+│   └── fetch_item_meta.py                # 取条目元数据（辅助）
 ├── references/                           # 按需加载的参考（skill.md 只留指针）
 │   ├── rewrite-rules.md                  # 改写必做清单（Frontmatter/引用/公式/我的判断/证据分层）
 │   └── troubleshooting.md                # 重试策略 + MinerU/Obsidian 注意事项
